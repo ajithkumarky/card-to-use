@@ -177,3 +177,20 @@ details.issuer summary small{font-weight:400;color:var(--mut)}
 .quick .answer{border-top:0;padding-top:0}
 @media (max-width:520px){.answer-card{grid-template-columns:96px 1fr;gap:12px;align-items:start}.answer-card .cc{max-width:96px}.answer-card h2{font-size:22px}}
 @media (max-width:520px){.matched-main{flex-wrap:wrap;gap:4px 12px}.matched-actions{width:100%;padding-left:38px}.matched-actions .linkish{min-height:36px}}
+.guide .guide-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:12px 0}
+.guide-col{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;color:var(--ink);cursor:pointer;min-width:0}
+.guide-col:hover:not(:disabled){border-color:var(--ink)}
+.guide-col:disabled{opacity:.45;cursor:default}
+.guide-col span{font-size:13px;color:var(--mut);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.guide-rows{margin:10px 0;border-collapse:collapse;font-size:15px}
+.guide-rows td{padding:6px 14px 6px 0;border-bottom:1px solid var(--line)}
+.guide-rows td.num{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.colsum{list-style:none;padding:0;margin:12px 0 20px;display:grid;gap:10px}
+.colsum li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,220px);gap:4px 16px;align-items:start;border-bottom:1px solid var(--line);padding-bottom:10px}
+.colsum .what{font-size:14px;color:var(--mut)}
+.colsum .what b{color:var(--ink);font-size:15px}
+.colsum .eg{display:block;font-size:13px;color:var(--mut);margin-top:2px}
+.colsum .st{font-size:13px;font-weight:600}
+.colsum .st.ok{color:var(--gain)}
+.colsum .st.miss{color:var(--bad)}
+@media (max-width:520px){.colsum li{grid-template-columns:1fr}}
