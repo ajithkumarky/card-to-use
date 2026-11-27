@@ -1,3 +1,5 @@
+import type { RotatingOffer } from './rotating';
+
 export const CATEGORY_IDS = [
   'dining', 'groceries', 'gas', 'airfare', 'hotels', 'travel', 'transit', 'streaming',
   'entertainment', 'drugstore', 'amazon', 'online', 'wholesale', 'utilities', 'other',
@@ -43,6 +45,8 @@ export interface Rotating {
   quarterlyCap: number;
   quarter: string;
   categories: CategoryId[];
+  /** This quarter's categories as read from the issuer's site, when the crawler has them. */
+  offer?: RotatingOffer;
 }
 
 /** One tier of a pick-your-category card: `count` categories chosen from `options` earn `rate`. */

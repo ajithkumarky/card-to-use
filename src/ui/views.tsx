@@ -8,6 +8,8 @@ import { fullName, rateText, usd } from './format';
 import type { Choices } from '../core/choices';
 
 const label = (c: CategoryId) => CATEGORY_LABELS[c];
+/** "2026-12-14" → "Dec 14". */
+const shortDate = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 export function Mini({ card }: { card: Card }) {
   return <span className="mini" style={{ background: card.color }} aria-hidden="true" />;
@@ -95,7 +97,9 @@ export function PlanView({ plan, held, mode, versus, onRotating }: { plan: Plan;
             <b>⚠ Rotating {r.rate}% on {c.name}</b>,{' '}
             {r.categories.length ? (
               <>
-                {r.quarter}: {r.categories.map(label).join(', ')}. Activate it first; {r.rate}% only covers the first {usd(r.quarterlyCap)} of the quarter. It could add about{' '}
+                {r.quarter}: {r.categories.map(label).join(', ')}
+                {r.offer?.extras.length ? ` (also ${r.offer.extras.join(', ')}, which the app doesn’t track)` : ''}. Activate it first
+                {r.offer?.activateBy ? ` by ${shortDate(r.offer.activateBy)}` : ''}; {r.rate}% only covers the first {usd(r.quarterlyCap)} of the quarter. It could add about{' '}
                 {usd(bonus)} this quarter over the plan below. Not counted in the yearly figures because the categories change.
               </>
             ) : (
@@ -263,10 +267,18 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
               </div>
               {c.rotating && (
                 <div className="flag" style={{ margin: 0 }}>
-                  <b>⚠ Rotating {c.rotating.rate}%</b> up to {usd(c.rotating.quarterlyCap)} a quarter. Activate each quarter.{' '}
+                  <b>⚠ Rotating {c.rotating.rate}%</b> up to {usd(c.rotating.quarterlyCap)} a quarter. Activate each quarter
+                  {c.rotating.offer?.activateBy ? ` (this quarter by ${shortDate(c.rotating.offer.activateBy)})` : ''}.{' '}
+                  {c.rotating.offer && (
+                    <>
+                      <a href={c.rotating.offer.source} target="_blank" rel="noopener noreferrer">{c.issuer}’s site</a> lists {c.rotating.offer.title} for{' '}
+                      {c.rotating.quarter}.{' '}
+                    </>
+                  )}
                   {c.rotating.categories.length ? `Now set to ${c.rotating.categories.map(label).join(', ')}.` : 'No categories set yet.'}
+                  {c.rotating.offer?.extras.length ? ` ${c.rotating.offer.extras.join(', ')} ${c.rotating.offer.extras.length > 1 ? 'aren’t categories' : 'isn’t a category'} the app tracks.` : ''}
                   <details open={!c.rotating.categories.length}>
-                  <summary>Set {c.rotating.quarter}’s categories from {c.issuer}’s site</summary>
+                  <summary>{c.rotating.offer ? `Change ${c.rotating.quarter}’s categories` : `Set ${c.rotating.quarter}’s categories from ${c.issuer}’s site`}</summary>
                   <div className="rotpick">
                     {CATEGORY_IDS.filter((k) => k !== 'other').map((k) => (
                       <label className="ck" key={k}>
@@ -281,6 +293,11 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
                       </label>
                     ))}
                   </div>
+                  {c.rotating.offer && c.rotating.offer.categories.join() !== c.rotating.categories.join() && (
+                    <button className="btn ghost" style={{ minHeight: 32, padding: '2px 10px' }} onClick={() => onRotating(c.id, c.rotating!.offer!.categories)}>
+                      Use {c.issuer}’s list
+                    </button>
+                  )}
                   </details>
                 </div>
               )}
