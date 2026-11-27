@@ -2,17 +2,17 @@ import { useState, type ReactNode } from 'react';
 import { BRANDS, CATEGORY_LABELS, brandOf, categorize } from '../core/categories';
 import { programs } from '../core/catalog';
 import { rankForPurchase, type PurchasePick } from '../core/recommend';
-import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type PointMode } from '../core/types';
+import { findMerchant, MERCHANTS } from '../core/merchants';
+import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type Network, type PointMode } from '../core/types';
 import { rateText, usd } from './format';
 import { CardArt, Mini } from './views';
 
-/** Common places to pay, offered as suggestions. Each is matched by the same rules as a bank export. */
-const SUGGESTIONS = [
-  ...Object.values(BRANDS).map((b) => b.name.split(',')[0]),
-  'Amazon', 'Costco', "Sam's Club", 'Target', 'Walmart', 'Kroger', 'Safeway', "Trader Joe's", 'Starbucks', 'Chipotle', 'McDonald’s',
-  'Uber', 'Uber Eats', 'Lyft', 'Shell', 'Chevron', 'Exxon', 'CVS', 'Walgreens', 'Netflix', 'Spotify', 'Disney+', 'Expedia', 'Airbnb',
-  'Hertz', 'Amtrak', 'Ticketmaster', 'AMC Theatres', 'Verizon', 'Comcast',
-];
+/** Places to pay, offered as suggestions: the merchant directory plus the brands whose cards pay a bonus. */
+const SUGGESTIONS = [...new Set([...MERCHANTS.map((m) => m.name), ...Object.values(BRANDS).map((b) => b.name.split(',')[0])])].sort((a, b) =>
+  a.localeCompare(b),
+);
+
+const NETWORK_NAMES: Record<Network, string> = { visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express', discover: 'Discover' };
 
 const where = (cat: CategoryId, brand?: BrandId) => (brand ? `${BRANDS[brand].name} (${CATEGORY_LABELS[cat].toLowerCase()})` : CATEGORY_LABELS[cat].toLowerCase());
 
@@ -24,6 +24,10 @@ function why(p: PurchasePick, cat: CategoryId, brand?: BrandId): string {
     case 'rotating':
       return `This quarter’s ${p.rate}% category${cap}. Activate it on ${p.card.issuer}’s site first.`;
     case 'category':
+      if (p.card.choice && p.card.picked?.includes(p.via!))
+        return p.card.choice.auto
+          ? `Its ${p.rate}% top-category bonus${cap}, if ${CATEGORY_LABELS[p.via!].toLowerCase()} is your biggest category this cycle.`
+          : `The ${p.rate}% category you picked${cap}.`;
       return p.via === cat ? `Its ${CATEGORY_LABELS[cat].toLowerCase()} rate${cap}.` : `Counts as ${CATEGORY_LABELS[p.via!].toLowerCase()}${cap}.`;
     default:
       return 'Its everyday rate; no bonus here.';
@@ -46,9 +50,10 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
   const guessed = typed ? categorize(typed, '', overrides) : null;
   const cat = chosen ?? guessed;
   const brand = typed && cat ? brandOf(typed, cat) : undefined;
-  const ranked = cat && held.length ? rankForPurchase(held, cat, brand, programs, mode) : [];
+  const known = typed ? findMerchant(typed) : undefined;
+  const ranked = cat && held.length ? rankForPurchase(held, cat, brand, programs, mode, known?.accepts) : [];
   const [best, ...rest] = ranked;
-  const unsure = !!typed && !chosen && guessed === 'other';
+  const unsure = !!typed && !chosen && guessed === 'other' && !known;
 
   if (!held.length)
     return (
@@ -84,9 +89,12 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
         {unsure
           ? 'Not sure what kind of place that is. Pick one below.'
           : cat
-            ? `Treating this as ${where(cat, brand)}.`
+            ? known && !chosen
+              ? `${known.name} counts as ${where(cat, brand)}.`
+              : `Treating this as ${where(cat, brand)}.`
             : 'Type a store, or pick what you’re buying:'}
       </p>
+      {known && !chosen && known.note && <p className="note merchant-note">ⓘ {known.note}</p>}
       {cat && !unsure ? (
         <details className="change">
           <summary>Wrong kind of purchase? Change it</summary>
@@ -115,8 +123,8 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
               <p className="eyebrow">Use</p>
               <h2>{best.card.name}</h2>
               <p className="answer-rate">{rateText(best.card, best.rate, programs, mode)}</p>
-              <p className="note">{why(best, cat!, brand)}</p>
-              {rest[0] && rest[0].cents === best.cents && <p className="note">{rest[0].card.name} earns the same here.</p>}
+              <p className="note">{best.accepted === false ? `${known!.name} doesn’t take any of your cards’ networks.` : why(best, cat!, brand)}</p>
+              {rest[0] && rest[0].cents === best.cents && rest[0].accepted !== false && <p className="note">{rest[0].card.name} earns the same here.</p>}
             </div>
           </div>
           {rest.length > 0 && (
@@ -126,7 +134,7 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
                   <Mini card={p.card} />
                   <span>
                     <b>{p.card.name}</b> {rateText(p.card, p.rate, programs, mode)}
-                    <small>{why(p, cat!, brand)}</small>
+                    <small>{p.accepted === false ? `${known!.name} doesn’t take ${NETWORK_NAMES[p.card.network!]}.` : why(p, cat!, brand)}</small>
                   </span>
                 </li>
               ))}

@@ -3,7 +3,8 @@ import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
 import { buildPlan } from '../core/recommend';
 import type { Card, CategoryId, PointMode } from '../core/types';
-import { BRANDS, CATEGORY_LABELS } from '../core/categories';
+import { BRANDS, CATEGORY_LABELS, categorize } from '../core/categories';
+import { applyChoices, type Choices } from '../core/choices';
 import { usd } from './format';
 import { forget, recall, remember } from './memory';
 import { QuickPick } from './quick';
@@ -41,6 +42,7 @@ export function App() {
   const [editingCards, setEditingCards] = useState(false);
   const [custom, setCustom] = useState<Card[]>(SAVED?.custom ?? []);
   const [rotating, setRotating] = useState<Record<string, CategoryId[]>>(SAVED?.rotating ?? {});
+  const [choices, setChoices] = useState<Choices>(SAVED?.choices ?? {});
   const [overrides, setOverrides] = useState<Record<string, CategoryId>>(SAVED?.overrides ?? {});
   const [cardLabels, setCardLabels] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<PointMode>(SAVED?.mode ?? 'best');
@@ -64,9 +66,25 @@ export function App() {
       ),
     [custom, rotating],
   );
-  const heldCards = useMemo(() => held.map((id) => allCards.find((c) => c.id === id)).filter((c): c is Card => !!c), [held, allCards]);
   const missing = missingColumns(cols);
   const transactions = useMemo(() => toTransactions(file, cols, negative), [file, cols, negative]);
+  // Spend by category, so a card that picks your top category itself (Citi Custom Cash) can be modeled.
+  const spendByCat = useMemo(() => {
+    const out: Partial<Record<CategoryId, number>> = {};
+    for (const t of transactions) {
+      const c = categorize(t.description, t.bankCategory, overrides);
+      out[c] = (out[c] ?? 0) + t.amount;
+    }
+    return out;
+  }, [transactions, overrides]);
+  const heldCards = useMemo(
+    () =>
+      held
+        .map((id) => allCards.find((c) => c.id === id))
+        .filter((c): c is Card => !!c)
+        .map((c) => applyChoices(c, choices[c.id], spendByCat)),
+    [held, allCards, choices, spendByCat],
+  );
   const months = monthsOverride ?? monthsCovered(transactions);
   const plan = useMemo(
     () => buildPlan({ transactions, months, held: heldCards, programs, mode, overrides, cardLabels }),
@@ -75,11 +93,11 @@ export function App() {
 
   // Remember choices once the person has made one. The sample's cards are never saved.
   useEffect(() => {
-    const used = touched || custom.length > 0 || Object.keys(overrides).length > 0 || Object.keys(rotating).length > 0;
+    const used = touched || custom.length > 0 || Object.keys(overrides).length > 0 || Object.keys(rotating).length > 0 || Object.keys(choices).length > 0;
     if (!used) return;
-    remember({ held: touched ? held : [], custom, rotating, overrides, mode });
+    remember({ held: touched ? held : [], custom, rotating, choices, overrides, mode });
     setRemembered(true);
-  }, [touched, held, custom, rotating, overrides, mode]);
+  }, [touched, held, custom, rotating, choices, overrides, mode]);
 
   function forgetMe() {
     forget();
@@ -88,6 +106,7 @@ export function App() {
     setHeld(source === 'sample' ? SAMPLE_HELD : []);
     setCustom([]);
     setRotating({});
+    setChoices({});
     setOverrides({});
     setCardLabels({});
     setMode('best');
@@ -369,6 +388,8 @@ export function App() {
               onCustom={(c) => { setCustom((x) => [...x, c]); changeHeld([...held, c.id]); }}
               rotating={rotating}
               onRotating={(id, cats) => setRotating((r) => ({ ...r, [id]: cats }))}
+              choices={choices}
+              onChoice={(id, picks) => setChoices((c) => ({ ...c, [id]: picks }))}
             />
           )}
           {loaded && tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}

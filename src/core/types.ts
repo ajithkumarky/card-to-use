@@ -17,6 +17,8 @@ export const BRAND_IDS = [
 ] as const;
 export type BrandId = (typeof BRAND_IDS)[number];
 
+export type Network = 'visa' | 'mastercard' | 'amex' | 'discover';
+
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type PointMode = 'best' | 'cash';
 
@@ -43,6 +45,26 @@ export interface Rotating {
   categories: CategoryId[];
 }
 
+/** One tier of a pick-your-category card: `count` categories chosen from `options` earn `rate`. */
+export interface ChoiceTier {
+  rate: number;
+  count: number;
+  options: CategoryId[];
+  /** Used until the cardholder picks. */
+  defaults: CategoryId[];
+  /** Yearly cap in dollars for each chosen category (a quarterly or monthly cap times 4 or 12). */
+  cap?: number;
+}
+
+/** Cards where you choose the bonus categories (U.S. Bank Cash+), or the card picks your top one (Citi Custom Cash). */
+export interface Choice {
+  tiers: ChoiceTier[];
+  /** The card applies its bonus to your top eligible category automatically. */
+  auto?: boolean;
+  /** How often the choice can change, for the wallet tile. */
+  period: string;
+}
+
 export interface Card {
   id: string;
   name: string;
@@ -55,6 +77,11 @@ export interface Card {
   /** Bonus rates at one brand's own merchants (Delta flights, Hilton hotels). The better of this and the category rate applies. */
   brands?: Partial<Record<BrandId, Rate>>;
   rotating?: Rotating;
+  choice?: Choice;
+  /** Categories now earning a chosen-category rate, filled in when choices are applied. */
+  picked?: CategoryId[];
+  /** Payment network, where it is the same for every cardholder. */
+  network?: Network;
   color: string;
   light?: boolean;
   /** Lowercase words that identify this card in a bank export's card column. */

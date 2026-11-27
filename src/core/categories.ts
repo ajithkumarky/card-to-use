@@ -1,3 +1,4 @@
+import { findMerchant } from './merchants';
 import type { BrandId, CategoryId } from './types';
 
 export const CATEGORY_LABELS: Record<CategoryId, string> = {
@@ -129,6 +130,8 @@ export function categorize(
   if (overrides[key]) return overrides[key];
   const d = description.toLowerCase();
   for (const b of Object.values(BRANDS)) if (b.pattern.test(d)) return b.category;
+  const known = findMerchant(d);
+  if (known) return known.category;
   for (const [re, cat] of MERCHANT_RULES) if (re.test(d)) return cat;
   const b = bankCategory.toLowerCase();
   for (const [re, cat] of BANK_RULES) if (re.test(b)) return cat;
