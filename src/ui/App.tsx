@@ -12,9 +12,10 @@ import { forget, recall, remember } from './memory';
 import { QuickPick } from './quick';
 import { readFile } from './readFile';
 import { SAMPLE_HELD, sampleTable } from './sample';
-import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, WalletView } from './views';
+import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, ThisQuarter, WalletView } from './views';
 import { fullName } from './format';
 
+type Page = 'plan' | 'use' | 'cards';
 type Tab = 'plan' | 'wallet' | 'merchants' | 'columns';
 const TABS: [Tab, string][] = [
   ['plan', 'Which card where'],
@@ -52,10 +53,13 @@ export function App() {
   const [cardLabels, setCardLabels] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<PointMode>(SAVED?.mode ?? 'best');
   const [remembered, setRemembered] = useState(!!SAVED);
-  // Two pages share the same saved cards: the plan from a file, and "What do I use?" at #use for a single purchase.
-  const [page, setPage] = useState<'plan' | 'use'>(() => (window.location.hash === '#use' ? 'use' : 'plan'));
+  // Two pages share the same saved cards: the plan from a file, and "Which card here?" at #use for a single purchase.
+  // With no hash, someone who has saved cards lands on the lookup; a first visit gets the how-it-works page.
+  const pageFor = (hash: string): Page => (hash === '#use' ? 'use' : hash === '#cards' ? 'cards' : hash === '#plan' ? 'plan' : SAVED?.held.length ? 'use' : 'plan');
+  const [page, setPage] = useState<Page>(() => pageFor(window.location.hash));
+  const [changingCards, setChangingCards] = useState(false);
   useEffect(() => {
-    const onHash = () => setPage(window.location.hash === '#use' ? 'use' : 'plan');
+    const onHash = () => setPage(pageFor(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -201,11 +205,35 @@ export function App() {
   const topnav = (
     <nav className="topnav" aria-label="Pages">
       <div className="wrap">
-        <span className="brand">Card to Use</span>
-        <a href="#" aria-current={page === 'plan' ? 'page' : undefined}>Plan from spending</a>
-        <a href="#use" aria-current={page === 'use' ? 'page' : undefined}>What do I use?</a>
+        <a className="brand" href={held.length ? '#use' : '#plan'}>Card to Use</a>
+        <div className="navtabs">
+          <a href="#use" aria-current={page === 'use' ? 'page' : undefined}>
+            <span aria-hidden="true">🔎</span> Which card here?
+          </a>
+          <a href="#cards" aria-current={page === 'cards' ? 'page' : undefined}>
+            <span aria-hidden="true">💳</span> My cards
+          </a>
+          <a href="#plan" aria-current={page === 'plan' ? 'page' : undefined}>
+            <span aria-hidden="true">📊</span> Analyze my spending
+          </a>
+        </div>
       </div>
     </nav>
+  );
+
+  const wallet = (
+    <WalletView
+      all={allCards}
+      held={heldCards}
+      plan={showNumbers ? plan : null}
+      mode={mode}
+      onHeld={changeHeld}
+      onCustom={(c) => { setCustom((x) => [...x, c]); changeHeld([...held, c.id]); }}
+      rotating={rotating}
+      onRotating={(id, cats) => setRotating((r) => ({ ...r, [tickKey(id)]: cats }))}
+      choices={choices}
+      onChoice={(id, picks) => setChoices((c) => ({ ...c, [id]: picks }))}
+    />
   );
 
   const footer = (
@@ -220,23 +248,52 @@ export function App() {
     </footer>
   );
 
+  if (page === 'cards')
+    return (
+      <>
+        {topnav}
+        <main className="band">
+          <div className="wrap">
+            <h1>My cards</h1>
+            {heldCards.length && !changingCards ? (
+              <>
+                <ThisQuarter held={heldCards} />
+                {wallet}
+                <p className="note">
+                  <button className="linkish" onClick={() => setChangingCards(true)}>Pick my cards from the full list</button>
+                  {remembered && ' · '}
+                  {remembered && <button className="linkish" onClick={forgetMe}>Forget me</button>}
+                </p>
+              </>
+            ) : (
+              <CardPicker cards={allCards} held={held} doneLabel="Save my cards" onDone={(ids) => { changeHeld(ids); setChangingCards(false); }} />
+            )}
+            <StackNote asOf={catalog.asOf} />
+          </div>
+        </main>
+        {footer}
+      </>
+    );
+
   if (page === 'use')
     return (
       <>
         {topnav}
         <main className="band">
           <div className="wrap">
-            <h1>What do I use?</h1>
+            <h1>Which card should I use here?</h1>
             <QuickPick
-              held={heldCards}
+              held={changingCards ? [] : heldCards}
               mode={mode}
               onMode={setMode}
               overrides={overrides}
-              picker={<CardPicker cards={allCards} held={held} doneLabel="Save my cards" onDone={changeHeld} />}
+              picker={<CardPicker cards={allCards} held={held} doneLabel="Save my cards" onDone={(ids) => { changeHeld(ids); setChangingCards(false); }} />}
             />
-            {heldCards.length > 0 && (
+            {heldCards.length > 0 && !changingCards && (
               <p className="note">
-                Using your {heldCards.length} saved card{heldCards.length === 1 ? '' : 's'}. Change them on <a href="#">Plan from spending</a>.{' '}
+                Using your {heldCards.length} saved card{heldCards.length === 1 ? '' : 's'}.{' '}
+                <button className="linkish" onClick={() => setChangingCards(true)}>Change my cards</button>
+                {remembered && ' · '}
                 {remembered && <button className="linkish" onClick={forgetMe}>Forget me</button>}
               </p>
             )}
@@ -399,20 +456,7 @@ export function App() {
             ) : (
               <PlanView plan={plan} held={heldCards} mode={mode} versus={versus} onRotating={() => setTab('wallet')} />
             ))}
-          {loaded && tab === 'wallet' && (
-            <WalletView
-              all={allCards}
-              held={heldCards}
-              plan={showNumbers ? plan : null}
-              mode={mode}
-              onHeld={changeHeld}
-              onCustom={(c) => { setCustom((x) => [...x, c]); changeHeld([...held, c.id]); }}
-              rotating={rotating}
-              onRotating={(id, cats) => setRotating((r) => ({ ...r, [tickKey(id)]: cats }))}
-              choices={choices}
-              onChoice={(id, picks) => setChoices((c) => ({ ...c, [id]: picks }))}
-            />
-          )}
+          {loaded && tab === 'wallet' && wallet}
           {loaded && tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
           {loaded && tab === 'columns' && (
             <ColumnsView
@@ -506,7 +550,7 @@ function Start(props: {
       <div className="row-btns">
         <button className="btn" onClick={onFile}>Choose a file</button>
         <button className="btn ghost" onClick={onEdit}>Change my cards</button>
-        <a className="btn ghost" href="#use">What do I use?</a>
+        <a className="btn ghost" href="#use">Which card here?</a>
       </div>
     </section>
   );

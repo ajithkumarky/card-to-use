@@ -42,41 +42,83 @@ interface PickerProps {
   intro?: string;
 }
 
+/** Widely held cards, offered as one-tap picks before any searching. */
+const POPULAR = [
+  'chase-sapphire-preferred', 'chase-freedom-unlimited', 'chase-prime-visa', 'amex-gold', 'amex-platinum', 'amex-blue-cash-preferred',
+  'capital-one-venture-x', 'capital-one-savor', 'capital-one-quicksilver', 'citi-double-cash', 'citi-custom-cash', 'costco-anywhere-visa',
+  'discover-it', 'wells-fargo-active-cash', 'usbank-cash-plus',
+];
+
 export function CardPicker({ cards, held, onDone, doneLabel = 'Show my recommendations', intro }: PickerProps) {
   const [picked, setPicked] = useState<string[]>(held);
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const shown = q ? cards.filter((c) => [fullName(c).toLowerCase(), ...c.aliases].some((a) => a.includes(q))) : cards;
+  const toggle = (id: string, on: boolean) => setPicked((p) => (on ? (p.includes(id) ? p : [...p, id]) : p.filter((x) => x !== id)));
+  const mine = picked.map((id) => cards.find((c) => c.id === id)).filter((c): c is Card => !!c);
+  const popular = POPULAR.map((id) => cards.find((c) => c.id === id)).filter((c): c is Card => !!c && !picked.includes(c.id));
+  const box = (c: Card, withIssuer = false) => (
+    <label className="ck" key={c.id}>
+      <input type="checkbox" checked={picked.includes(c.id)} onChange={(e) => toggle(c.id, e.target.checked)} />
+      <Mini card={c} />
+      <span>{withIssuer ? fullName(c) : c.name}</span>
+    </label>
+  );
   return (
-    <section className="form">
-      <h3>Which of these cards do you hold?</h3>
-      <p className="note">{intro ?? 'Tick every card you have so the recommendations only use your wallet. You can add a card that isn’t listed on the My cards tab.'}</p>
-      <label className="find">
+    <section className="form picker">
+      <h3>Which cards do you hold?</h3>
+      <p className="note">{intro ?? 'Search for each card you have, or tap a popular one. Cards that aren’t listed can be added on My cards.'}</p>
+      <label className="find big">
         Find a card
-        <input type="search" value={query} placeholder="Name or issuer, like Delta or Venture" onChange={(e) => setQuery(e.target.value)} />
+        <input type="search" autoComplete="off" value={query} placeholder="Name or issuer, like Sapphire, Gold or Venture" onChange={(e) => setQuery(e.target.value)} />
       </label>
-      {byIssuer(shown).map(([issuer, group]) => (
-        <fieldset className="issuer" key={issuer}>
-          <legend>{issuer}</legend>
-          <div className="checks">
-            {group.map((c) => (
-              <label className="ck" key={c.id}>
-                <input
-                  type="checkbox"
-                  checked={picked.includes(c.id)}
-                  onChange={(e) => setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id)))}
-                />
-                <Mini card={c} />
-                <span>{c.name}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
-      {!shown.length && <p className="note">No listed card matches “{query}”.</p>}
-      <button className="btn" disabled={!picked.length} onClick={() => onDone(picked)}>
-        {doneLabel}
-      </button>
+      {mine.length > 0 && (
+        <div className="mine" aria-label="Cards you picked">
+          {mine.map((c) => (
+            <button key={c.id} className="pill on" onClick={() => toggle(c.id, false)} aria-label={`Remove ${fullName(c)}`}>
+              <Mini card={c} /> {fullName(c)} <span aria-hidden="true">✕</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {q ? (
+        <>
+          <div className="checks">{shown.map((c) => box(c, true))}</div>
+          {!shown.length && <p className="note">No listed card matches “{query}”.</p>}
+        </>
+      ) : (
+        <>
+          {popular.length > 0 && (
+            <>
+              <p className="pick-head">Popular cards</p>
+              <div className="chips">
+                {popular.map((c) => (
+                  <button key={c.id} className="pill" onClick={() => toggle(c.id, true)}>
+                    <Mini card={c} /> {fullName(c)} <span aria-hidden="true">＋</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <p className="pick-head">Or browse by bank</p>
+          {byIssuer(cards).map(([issuer, group]) => {
+            const n = group.filter((c) => picked.includes(c.id)).length;
+            return (
+              <details className="issuer" key={issuer}>
+                <summary>
+                  {issuer} <small>{group.length} card{group.length === 1 ? '' : 's'}{n ? ` · ${n} picked` : ''}</small>
+                </summary>
+                <div className="checks">{group.map((c) => box(c))}</div>
+              </details>
+            );
+          })}
+        </>
+      )}
+      <div className="picker-done">
+        <button className="btn" disabled={!picked.length} onClick={() => onDone(picked)}>
+          {picked.length ? `${doneLabel} (${picked.length})` : doneLabel}
+        </button>
+      </div>
     </section>
   );
 }
@@ -186,7 +228,7 @@ function ChoicePicker({ card, picks, onChoice }: { card: Card; picks: CategoryId
               {t.rate}% {t.count > 1 ? `pick ${j + 1}` : 'category'}
               {t.cap ? <small> (first {usd(t.cap / (choice.period.includes('month') ? 12 : 4))} a {choice.period.includes('month') ? 'month' : 'quarter'})</small> : null}
               <select value={value} onChange={(e) => set(i, j, e.target.value)}>
-                {choice.auto && <option value="">{card.picked?.length && !picks?.[i]?.length ? `Top in your file: ${label(card.picked[i] ?? card.picked[0])}` : 'Your top category'}</option>}
+                {choice.auto && <option value="">{card.picked?.length && !picks?.[i]?.length ? `Top in your file: ${label(card.pickedTiers?.[i]?.[0] ?? card.picked[0])}` : 'Your top category'}</option>}
                 {t.options.map((o) => (
                   <option key={o} value={o} disabled={o !== value && used.has(o)}>
                     {label(o)}
@@ -198,6 +240,52 @@ function ChoicePicker({ card, picks, onChoice }: { card: Card; picks: CategoryId
         }),
       )}
     </div>
+  );
+}
+
+/** At the top of My cards: this quarter's rotating categories and your chosen categories, one line per card. */
+export function ThisQuarter({ held }: { held: Card[] }) {
+  const rot = held.filter((c) => c.rotating);
+  const picks = held.filter((c) => c.choice && c.picked?.length);
+  if (!rot.length && !picks.length) return null;
+  return (
+    <section className="form quarter">
+      <h3>Bonus categories right now</h3>
+      <ul>
+        {rot.map((c) => {
+          const r = c.rotating!;
+          return (
+            <li key={c.id}>
+              <Mini card={c} />
+              <span>
+                <b>{c.name}</b> {r.rate}% {r.quarter}:{' '}
+                {r.offer ? r.offer.title : r.categories.length ? r.categories.map(label).join(', ') : 'not set yet'}
+                <small>
+                  {r.offer?.activateBy ? `Activate by ${shortDate(r.offer.activateBy)}. ` : 'Activate each quarter. '}
+                  First {usd(r.quarterlyCap)} of the quarter.
+                  {r.offer?.source && (
+                    <>
+                      {' '}
+                      <a href={r.offer.source} target="_blank" rel="noopener noreferrer">{c.issuer}’s page</a>
+                    </>
+                  )}
+                </small>
+              </span>
+            </li>
+          );
+        })}
+        {picks.map((c) => (
+          <li key={c.id}>
+            <Mini card={c} />
+            <span>
+              <b>{c.name}</b>{' '}
+              {c.choice!.tiers.map((t, i) => `${t.rate}% ${(c.pickedTiers?.[i] ?? []).map(label).join(' and ') || 'not set'}`).join(' · ')}
+              <small>{c.choice!.auto ? 'Picked automatically from your top category; you can pin one below.' : `You choose ${c.choice!.period}; change it below.`}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -84,6 +84,8 @@ export interface Card {
   choice?: Choice;
   /** Categories now earning a chosen-category rate, filled in when choices are applied. */
   picked?: CategoryId[];
+  /** The same, per tier of `choice`. */
+  pickedTiers?: CategoryId[][];
   /** Payment network, where it is the same for every cardholder. */
   network?: Network;
   color: string;
