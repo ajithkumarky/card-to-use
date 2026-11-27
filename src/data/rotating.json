@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-11-27T19:00:00.000Z",
+  "changedAt": "2026-11-27T19:00:00.000Z",
+  "offers": {
+    "chase-freedom-flex": [
+      {
+        "quarter": "2026-Q4",
+        "start": "2026-10-01",
+        "end": "2026-12-31",
+        "title": "Grocery Stores, Dining and American Red Cross Donations",
+        "categories": ["groceries", "dining"],
+        "extras": ["American Red Cross Donations"],
+        "activateBy": "2026-12-14",
+        "source": "https://media.chase.com/news/chase-freedom-2026-q4-categories"
+      }
+    ],
+    "discover-it": [
+      {
+        "quarter": "2026-Q4",
+        "start": "2026-10-01",
+        "end": "2026-12-31",
+        "title": "Restaurants, Entertainment and Utilities",
+        "categories": ["dining", "entertainment", "utilities"],
+        "extras": [],
+        "source": "https://www.discover.com/credit-cards/cash-back/cashback-calendar.html"
+      }
+    ]
+  }
+}

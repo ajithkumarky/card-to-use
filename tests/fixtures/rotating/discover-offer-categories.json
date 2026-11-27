@@ -1,0 +1,9 @@
+{
+  "disclosureApply": "Applies to all categories: ",
+  "quarters": [
+    { "offerId": 34199, "offerStatus": "expired", "title": "Grocery Stores, Wholesale Clubs, and Select Streaming Services", "subTitle": "", "preEnrollmentStartDate": "December 01, 2025", "qualificationStartDate": "January 01, 2026", "quarterLabelStartDate": "January 01, 2026", "quarterLabelEndDate": "March 31, 2026", "hasAdditionalCategories": false, "additionalCategories": [] },
+    { "offerId": 34231, "offerStatus": "expired", "title": "Restaurants and Home Improvement Stores", "subTitle": "", "preEnrollmentStartDate": "March 01, 2026", "qualificationStartDate": "April 01, 2026", "quarterLabelStartDate": "April 01, 2026", "quarterLabelEndDate": "June 30, 2026", "hasAdditionalCategories": false, "additionalCategories": [] },
+    { "offerId": 34262, "offerStatus": "expired", "title": "Gas Stations, Transportation and Drug Stores", "subTitle": "", "preEnrollmentStartDate": "June 01, 2026", "qualificationStartDate": "July 01, 2026", "quarterLabelStartDate": "July 01, 2026", "quarterLabelEndDate": "September 30, 2026", "hasAdditionalCategories": false, "additionalCategories": [] },
+    { "offerId": 34285, "offerStatus": "qualification", "title": "Restaurants, Entertainment and Utilities", "subTitle": "", "preEnrollmentStartDate": "September 01, 2026", "qualificationStartDate": "October 01, 2026", "quarterLabelStartDate": "October 01, 2026", "quarterLabelEndDate": "December 31, 2026", "hasAdditionalCategories": false, "additionalCategories": [] }
+  ]
+}
