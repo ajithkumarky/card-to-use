@@ -1,0 +1,9 @@
+{
+  // Static app only: there is no Worker script, so nothing runs on the server.
+  "name": "card-to-use",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
