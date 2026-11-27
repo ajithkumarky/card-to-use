@@ -1,0 +1,4 @@
+Transaction Date,Posted Date,Card No.,Description,Category,Debit,Credit
+2026-11-01,2026-11-02,1234,COSTCO WHSE #0412,Merchandise,190.33,
+2026-11-03,2026-11-04,5678,DELTA AIR LINES,Airfare,412.00,
+2026-11-09,2026-11-09,1234,CAPITAL ONE MOBILE PYMT,Payment/Credit,,300.00
