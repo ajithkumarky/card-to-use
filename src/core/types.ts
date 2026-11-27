@@ -4,15 +4,28 @@ export const CATEGORY_IDS = [
 ] as const;
 export type CategoryId = (typeof CATEGORY_IDS)[number];
 
-export type ProgramId = 'ur' | 'mr' | 'ty' | 'c1' | 'cash';
+export const PROGRAM_IDS = [
+  'ur', 'mr', 'ty', 'c1', 'bilt', 'wf', 'usb', 'bofa',
+  'delta', 'united', 'aa', 'southwest', 'jetblue', 'aeroplan', 'avios',
+  'marriott', 'hilton', 'hyatt', 'ihg', 'wyndham', 'choice', 'cash',
+] as const;
+/** Merchants whose own cards pay a bonus there (an airline, a hotel chain, a store). */
+export const BRAND_IDS = [
+  'delta', 'united', 'american', 'southwest', 'jetblue', 'aircanada', 'avios',
+  'marriott', 'hilton', 'hyatt', 'ihg', 'wyndham', 'choice',
+  'wholefoods', 'doordash', 'instacart',
+] as const;
+export type BrandId = (typeof BRAND_IDS)[number];
+
+export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type PointMode = 'best' | 'cash';
 
 export interface Program {
   id: ProgramId;
   name: string;
-  /** Cents per point when transferred to partners (published estimate). */
+  /** Cents per point at a realistic best redemption, such as transfers to partners or award stays (published estimate). */
   bestCents: number;
-  /** Cents per point when cashed out or used as a statement credit. */
+  /** Cents per point when cashed out or used as a statement credit, or for airline and hotel programs a typical low-effort redemption. */
   cashCents: number;
 }
 
@@ -39,6 +52,8 @@ export interface Card {
   program: ProgramId;
   base: number;
   rates: Partial<Record<CategoryId, Rate>>;
+  /** Bonus rates at one brand's own merchants (Delta flights, Hilton hotels). The better of this and the category rate applies. */
+  brands?: Partial<Record<BrandId, Rate>>;
   rotating?: Rotating;
   color: string;
   light?: boolean;

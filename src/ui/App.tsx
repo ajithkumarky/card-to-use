@@ -3,7 +3,7 @@ import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
 import { buildPlan } from '../core/recommend';
 import type { Card, CategoryId, PointMode } from '../core/types';
-import { CATEGORY_LABELS } from '../core/categories';
+import { groupLabel } from '../core/categories';
 import { usd } from './format';
 import { readFile } from './readFile';
 import { SAMPLE_HELD, sampleTable } from './sample';
@@ -123,8 +123,8 @@ export function App() {
                   Compared with {versus}
                   {plan.baselineKind === 'actual' && plan.matchedShare < 1 &&
                     ` (${Math.round(plan.matchedShare * 100)}% of purchases matched to one of your cards; match the rest on File columns)`}
-                  .{top && ` Your biggest earner is ${CATEGORY_LABELS[top.category].toLowerCase()} on ${top.segments[0].card.name}.`} Figures are a
-                  year’s estimate from your file, with points at {mode === 'best' ? 'their best transfer value' : 'cash-out value'}.
+                  .{top && ` Your biggest earner is ${groupLabel(top.category, top.brand).toLowerCase()} on ${top.segments[0].card.name}.`} Figures are a
+                  year’s estimate from your file, with points at {mode === 'best' ? 'their best realistic value' : 'cash-out value'}.
                 </p>
                 <div className="figs">
                   <div className="hero">
@@ -224,7 +224,7 @@ export function App() {
               onRotating={(id, cats) => setRotating((r) => ({ ...r, [id]: cats }))}
             />
           )}
-          {tab === 'merchants' && <MerchantsView transactions={transactions} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
+          {tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
           {tab === 'columns' && (
             <ColumnsView
               file={file}

@@ -1,9 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { CATEGORY_LABELS, categorize, merchantKey } from '../core/categories';
+import { BRANDS, CATEGORY_LABELS, brandOf, categorize, groupLabel, merchantKey } from '../core/categories';
 import { programs } from '../core/catalog';
 import type { ColumnMap, ParsedFile } from '../core/parse';
-import { matchCardLabel, rotatingBonus, type Plan } from '../core/recommend';
-import { CATEGORY_IDS, type Card, type CategoryId, type PointMode, type ProgramId, type Transaction } from '../core/types';
+import { centsPerPoint, matchCardLabel, rateFor, rotatingBonus, type Plan } from '../core/recommend';
+import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type PointMode, type ProgramId, type Transaction } from '../core/types';
 import { fullName, rateText, usd } from './format';
 
 const label = (c: CategoryId) => CATEGORY_LABELS[c];
@@ -24,25 +24,45 @@ export function CardArt({ card }: { card: Card }) {
   );
 }
 
+/** Cards grouped by issuer, in catalog order. */
+function byIssuer(cards: Card[]): [string, Card[]][] {
+  const groups = new Map<string, Card[]>();
+  for (const c of cards) groups.set(c.issuer, [...(groups.get(c.issuer) ?? []), c]);
+  return [...groups.entries()];
+}
+
 export function CardPicker({ cards, held, onDone }: { cards: Card[]; held: string[]; onDone: (ids: string[]) => void }) {
   const [picked, setPicked] = useState<string[]>(held);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const shown = q ? cards.filter((c) => [fullName(c).toLowerCase(), ...c.aliases].some((a) => a.includes(q))) : cards;
   return (
     <section className="form">
       <h3>Which of these cards do you hold?</h3>
       <p className="note">Tick every card you have so the recommendations only use your wallet. You can add a card that isn’t listed on the My cards tab.</p>
-      <div className="checks">
-        {cards.map((c) => (
-          <label className="ck" key={c.id}>
-            <input
-              type="checkbox"
-              checked={picked.includes(c.id)}
-              onChange={(e) => setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id)))}
-            />
-            <Mini card={c} />
-            <span>{fullName(c)}</span>
-          </label>
-        ))}
-      </div>
+      <label className="find">
+        Find a card
+        <input type="search" value={query} placeholder="Name or issuer, like Delta or Venture" onChange={(e) => setQuery(e.target.value)} />
+      </label>
+      {byIssuer(shown).map(([issuer, group]) => (
+        <fieldset className="issuer" key={issuer}>
+          <legend>{issuer}</legend>
+          <div className="checks">
+            {group.map((c) => (
+              <label className="ck" key={c.id}>
+                <input
+                  type="checkbox"
+                  checked={picked.includes(c.id)}
+                  onChange={(e) => setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id)))}
+                />
+                <Mini card={c} />
+                <span>{c.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ))}
+      {!shown.length && <p className="note">No listed card matches “{query}”.</p>}
       <button className="btn" disabled={!picked.length} onClick={() => onDone(picked)}>
         Show my recommendations
       </button>
@@ -84,9 +104,9 @@ export function PlanView({ plan, held, mode, versus, onRotating }: { plan: Plan;
         {plan.categories.map((p) => {
           const delta = p.earned - p.baseline;
           return (
-            <div className="row" key={p.category}>
+            <div className="row" key={`${p.category}-${p.brand ?? ''}`}>
               <div className="cat">
-                {label(p.category)}
+                {groupLabel(p.category, p.brand)}
                 <small>{usd(p.yearlySpend)} a year</small>
               </div>
               <div className="bar" role="img" aria-label={`${usd(p.yearlySpend)} a year`}>
@@ -146,7 +166,13 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
       <div className="addbar">
         <label className="sr" htmlFor="lib">Add a listed card</label>
         <select id="lib" value={chosen} onChange={(e) => setPick(e.target.value)} disabled={!available.length}>
-          {available.length ? available.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>) : <option>All listed cards added</option>}
+          {available.length
+            ? byIssuer(available).map(([issuer, group]) => (
+                <optgroup key={issuer} label={issuer}>
+                  {group.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
+                </optgroup>
+              ))
+            : <option>All listed cards added</option>}
         </select>
         <button className="btn" disabled={!chosen} onClick={() => onHeld([...ids, chosen])}>Add card</button>
         <button className="btn ghost" onClick={() => setShowForm(true)}>Add a card that isn’t listed</button>
@@ -177,6 +203,12 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
                 {(Object.entries(c.rates) as [CategoryId, { rate: number; cap?: number }][]).map(([cat, r]) => (
                   <div key={cat}>
                     <span>{label(cat)}</span>
+                    <span>{rateText(c, r.rate, programs, mode)}{r.cap ? ` up to ${usd(r.cap)}/yr` : ''}</span>
+                  </div>
+                ))}
+                {(Object.entries(c.brands ?? {}) as [BrandId, { rate: number; cap?: number }][]).map(([b, r]) => (
+                  <div key={b}>
+                    <span>{BRANDS[b].name}</span>
                     <span>{rateText(c, r.rate, programs, mode)}{r.cap ? ` up to ${usd(r.cap)}/yr` : ''}</span>
                   </div>
                 ))}
@@ -289,7 +321,27 @@ function CustomCardForm({ onSave, onCancel, count }: { onSave: (c: Card) => void
   );
 }
 
-export function MerchantsView({ transactions, overrides, onOverride }: { transactions: Transaction[]; overrides: Record<string, CategoryId>; onOverride: (key: string, c: CategoryId) => void }) {
+interface MerchantsProps {
+  transactions: Transaction[];
+  held: Card[];
+  mode: PointMode;
+  overrides: Record<string, CategoryId>;
+  onOverride: (key: string, c: CategoryId) => void;
+}
+
+/** The held card that pays most per dollar for one merchant, ignoring caps. */
+function bestFor(held: Card[], cat: CategoryId, brand: BrandId | undefined, mode: PointMode) {
+  let best: { card: Card; rate: number; cents: number } | undefined;
+  for (const card of held) {
+    const rate = rateFor(card, cat, brand).rate;
+    const cents = rate * centsPerPoint(card, programs, mode);
+    if (!best || cents > best.cents || (cents === best.cents && card.program === 'cash' && best.card.program !== 'cash')) best = { card, rate, cents };
+  }
+  return best;
+}
+
+export function MerchantsView({ transactions, held, mode, overrides, onOverride }: MerchantsProps) {
+  const [query, setQuery] = useState('');
   const merchants = useMemo(() => {
     const groups = new Map<string, { key: string; name: string; count: number; spend: number; bank: string }>();
     for (const t of transactions) {
@@ -299,36 +351,72 @@ export function MerchantsView({ transactions, overrides, onOverride }: { transac
       g.spend += t.amount;
       groups.set(key, g);
     }
-    return [...groups.values()].sort((a, b) => b.spend - a.spend).slice(0, 60);
+    return [...groups.values()].sort((a, b) => b.spend - a.spend);
   }, [transactions]);
+  const q = query.trim().toLowerCase();
+  const matches = q ? merchants.filter((m) => m.name.toLowerCase().includes(q) || m.key.includes(q)) : merchants;
+  const shown = q ? matches : matches.slice(0, 60);
   return (
     <section>
-      <h2>How your merchants were sorted</h2>
+      <h2>Which card to use at each merchant</h2>
       <p className="sub">
         Issuers reward by a merchant code that bank exports leave out, so the app sorts by merchant name and your bank’s category. Fix any merchant and every
-        purchase from it moves.
+        purchase from it moves. The best card ignores yearly caps; the Which card where tab accounts for them.
+      </p>
+      <label className="find">
+        Find a merchant
+        <input type="search" value={query} placeholder="Like Starbucks, Delta or Costco" onChange={(e) => setQuery(e.target.value)} />
+      </label>
+      <p className="note">
+        {q
+          ? `${matches.length} of ${merchants.length} merchants match.`
+          : merchants.length > 60
+            ? `Showing your top 60 of ${merchants.length} merchants by spend. Search to find the rest.`
+            : `${merchants.length} merchants.`}
       </p>
       <div className="scroll">
         <table>
           <thead>
-            <tr><th>Merchant</th><th className="n">Purchases</th><th className="n">Spent</th><th>Category</th></tr>
+            <tr><th>Merchant</th><th className="n">Purchases</th><th className="n">Spent</th><th>Category</th><th>Best card</th></tr>
           </thead>
           <tbody>
-            {merchants.map((m) => (
-              <tr key={m.key}>
-                <td>{m.name}</td>
-                <td className="n">{m.count}</td>
-                <td className="n">{usd(m.spend)}</td>
-                <td>
-                  <select aria-label={`Category for ${m.name}`} value={categorize(m.name, m.bank, overrides)} onChange={(e) => onOverride(m.key, e.target.value as CategoryId)}>
-                    {CATEGORY_IDS.map((k) => <option key={k} value={k}>{label(k)}</option>)}
-                  </select>
-                </td>
-              </tr>
-            ))}
+            {shown.map((m) => {
+              const cat = categorize(m.name, m.bank, overrides);
+              const brand = brandOf(m.name, cat);
+              const best = bestFor(held, cat, brand, mode);
+              return (
+                <tr key={m.key}>
+                  <td>
+                    {m.name}
+                    {brand && <small className="tag">{BRANDS[brand].name}</small>}
+                  </td>
+                  <td className="n">{m.count}</td>
+                  <td className="n">{usd(m.spend)}</td>
+                  <td>
+                    <select aria-label={`Category for ${m.name}`} value={cat} onChange={(e) => onOverride(m.key, e.target.value as CategoryId)}>
+                      {CATEGORY_IDS.map((k) => <option key={k} value={k}>{label(k)}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    {best ? (
+                      <span className="bestcard">
+                        <Mini card={best.card} />
+                        <span>
+                          {best.card.name}
+                          <small>{rateText(best.card, best.rate, programs, mode)}</small>
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="note">Add your cards</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      {q && !matches.length && <p className="note">No merchant in your file matches “{query}”.</p>}
     </section>
   );
 }

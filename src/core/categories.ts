@@ -1,4 +1,4 @@
-import type { CategoryId } from './types';
+import type { BrandId, CategoryId } from './types';
 
 export const CATEGORY_LABELS: Record<CategoryId, string> = {
   dining: 'Dining',
@@ -18,6 +18,35 @@ export const CATEGORY_LABELS: Record<CategoryId, string> = {
   other: 'Everything else',
 };
 
+/** Brand names, the purchases they cover, and their category. Checked before the merchant rules. */
+export const BRANDS: Record<BrandId, { name: string; pattern: RegExp; category: CategoryId }> = {
+  delta: { name: 'Delta', pattern: /delta air|delta\.com|\bdelta\s+\d{6,}/, category: 'airfare' },
+  united: { name: 'United', pattern: /united air|united\.com|\bunited\s+\d{6,}/, category: 'airfare' },
+  american: { name: 'American Airlines', pattern: /american air|\baa\.com|aa inflight|admirals club/, category: 'airfare' },
+  southwest: { name: 'Southwest', pattern: /southwest air|southwest\.com|southwes\s+\d/, category: 'airfare' },
+  jetblue: { name: 'JetBlue', pattern: /jetblue|jet blue/, category: 'airfare' },
+  aircanada: { name: 'Air Canada', pattern: /air canada/, category: 'airfare' },
+  avios: { name: 'British Airways, Aer Lingus, Iberia', pattern: /british a(ir|w)|aer lingus|iberia/, category: 'airfare' },
+  marriott: {
+    name: 'Marriott',
+    pattern: /marriott|westin|sheraton|ritz.carlton|residence inn|fairfield inn|springhill suites|st\.? regis|le meridien|aloft|renaissance hotel|moxy|element by|four points|autograph collection/,
+    category: 'hotels',
+  },
+  hilton: { name: 'Hilton', pattern: /hilton|hampton inn|doubletree|embassy suites|homewood suites|home2|conrad hotel|waldorf|tru by|canopy by/, category: 'hotels' },
+  hyatt: { name: 'Hyatt', pattern: /hyatt|andaz|thompson hotel|alila/, category: 'hotels' },
+  ihg: { name: 'IHG', pattern: /\bihg\b|holiday inn|intercontinental|crowne plaza|kimpton|candlewood|staybridge|hotel indigo|avid hotel/, category: 'hotels' },
+  wyndham: { name: 'Wyndham', pattern: /wyndham|days inn|super 8|la quinta|ramada|microtel|baymont|howard johnson|travelodge/, category: 'hotels' },
+  choice: { name: 'Choice Hotels', pattern: /choice hotel|comfort inn|comfort suites|quality inn|sleep inn|clarion|econo lodge|rodeway|cambria hotel|ascend hotel/, category: 'hotels' },
+  wholefoods: { name: 'Whole Foods', pattern: /whole\s*foods|wholefds/, category: 'groceries' },
+  doordash: { name: 'DoorDash', pattern: /doordash|caviar/, category: 'dining' },
+  instacart: { name: 'Instacart', pattern: /instacart/, category: 'groceries' },
+};
+
+/** A plan row's name: the category, or the brand within it ("Flights: Delta"). */
+export function groupLabel(category: CategoryId, brand?: BrandId): string {
+  return brand ? `${CATEGORY_LABELS[category]}: ${BRANDS[brand].name}` : CATEGORY_LABELS[category];
+}
+
 /** When a card has no rate for a category, the parent category's rate applies before the base rate. */
 export const PARENT: Partial<Record<CategoryId, CategoryId>> = {
   airfare: 'travel',
@@ -33,7 +62,7 @@ const MERCHANT_RULES: [RegExp, CategoryId][] = [
   [/costco|sam'?s\s*club|bj'?s\s*wholesale/, 'wholesale'],
   [/netflix|spotify|hulu|disney\s*\+|disneyplus|hbo|max\.com|youtube\s*(premium|tv)|apple\s*music|peacock|paramount|sirius/, 'streaming'],
   [/\buber\b|lyft|\bmta\b|metro|transit|bart\b|clipper|parking|toll|e-?zpass|fastrak/, 'transit'],
-  [/airline|airways|delta air|united air|american air|southwest|jetblue|alaska air|spirit air|frontier/, 'airfare'],
+  [/airline|airways|delta air|united air|american air|southwest air|jetblue|alaska air|spirit air|frontier/, 'airfare'],
   [/marriott|hilton|hyatt|\bihg\b|holiday inn|westin|sheraton|airbnb|vrbo|hotel|motel|resort/, 'hotels'],
   [/expedia|booking\.com|priceline|hertz|avis|enterprise rent|national car|amtrak|cruise/, 'travel'],
   [/whole\s*foods|wholefds|trader joe|safeway|kroger|publix|aldi|wegmans|h-e-b|\bheb\b|grocery|sprouts|albertsons|food lion|giant eagle|harris teeter|meijer|instacart/, 'groceries'],
@@ -73,6 +102,16 @@ export function merchantKey(description: string): string {
     .join(' ');
 }
 
+/** The brand a purchase belongs to, if any, for cards that pay a bonus at that brand. */
+export function brandOf(description: string, category: CategoryId): BrandId | undefined {
+  const d = description.toLowerCase();
+  for (const [id, b] of Object.entries(BRANDS) as [BrandId, (typeof BRANDS)[BrandId]][]) {
+    // A merchant moved to another category no longer counts as the brand.
+    if (b.category === category && b.pattern.test(d)) return id;
+  }
+  return undefined;
+}
+
 export function categorize(
   description: string,
   bankCategory: string,
@@ -81,6 +120,7 @@ export function categorize(
   const key = merchantKey(description);
   if (overrides[key]) return overrides[key];
   const d = description.toLowerCase();
+  for (const b of Object.values(BRANDS)) if (b.pattern.test(d)) return b.category;
   for (const [re, cat] of MERCHANT_RULES) if (re.test(d)) return cat;
   const b = bankCategory.toLowerCase();
   for (const [re, cat] of BANK_RULES) if (re.test(b)) return cat;
