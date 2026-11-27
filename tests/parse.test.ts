@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { brandOf, categorize, merchantKey } from '../src/core/categories';
+import { findMerchant, MERCHANTS } from '../src/core/merchants';
 import { missingColumns, monthsCovered, parseAmount, parseDate, readTable, toTransactions } from '../src/core/parse';
 import { loadFixture } from './helpers';
 
@@ -136,5 +137,31 @@ describe('what counts as a purchase', () => {
       ['2026-09-07', 'AMEX REFUND', '-5', '', 'Gold'],
     ]);
     expect(toTransactions(file).map((t) => t.amount)).toEqual([10, 20, 30, 40, 15, 25, -5]);
+  });
+});
+
+describe('merchant directory', () => {
+  it('codes common chains the way issuers do', () => {
+    const c = (d: string) => categorize(d, '');
+    expect(c('TARGET 00012345')).toBe('other');
+    expect(c('TARGET.COM')).toBe('online');
+    expect(c('WAL-MART #1234')).toBe('other');
+    expect(c('COSTCO WHSE #0412')).toBe('wholesale');
+    expect(c('COSTCO GAS #0412')).toBe('gas');
+    expect(c("ARBY'S #6012")).toBe('dining');
+    expect(c('ARBYS 6012')).toBe('dining');
+    expect(c('CHICK-FIL-A #01234')).toBe('dining');
+    expect(c('KING SOOPERS #12')).toBe('groceries');
+    expect(c('LOWES FOODS #22')).toBe('groceries');
+    expect(c("LOWE'S #1234")).toBe('other');
+    expect(c('PHILLIPS 66 - 12345')).toBe('gas');
+    expect(c('CINEMARK 0412')).toBe('entertainment');
+  });
+
+  it('has no duplicate names and matches each name to itself', () => {
+    const names = MERCHANTS.map((m) => m.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.length).toBeGreaterThan(400);
+    for (const m of MERCHANTS) expect(findMerchant(m.name)?.name, m.name).toBe(m.name);
   });
 });

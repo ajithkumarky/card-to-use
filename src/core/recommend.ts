@@ -1,4 +1,4 @@
-import { BRAND_IDS, CATEGORY_IDS, type BrandId, type Card, type CategoryId, type PointMode, type Program, type ProgramId, type Transaction } from './types';
+import { BRAND_IDS, CATEGORY_IDS, type BrandId, type Card, type CategoryId, type Network, type PointMode, type Program, type ProgramId, type Transaction } from './types';
 import { BRANDS, PARENT, brandOf, categorize } from './categories';
 
 export type Programs = Record<ProgramId, Program>;
@@ -255,10 +255,19 @@ export interface PurchasePick {
   via?: CategoryId;
   /** Yearly cap on this rate in dollars, or the quarterly cap for a rotating category. 0 when uncapped. */
   cap: number;
+  /** False when the merchant doesn't take the card's network; undefined when unknown or the merchant takes all. */
+  accepted?: boolean;
 }
 
 /** Ranks held cards for a single purchase at a merchant in a category, best first. Rotating categories count only once set. */
-export function rankForPurchase(held: Card[], cat: CategoryId, brand: BrandId | undefined, programs: Programs, mode: PointMode): PurchasePick[] {
+export function rankForPurchase(
+  held: Card[],
+  cat: CategoryId,
+  brand: BrandId | undefined,
+  programs: Programs,
+  mode: PointMode,
+  accepts?: Network[],
+): PurchasePick[] {
   const picks = held.map((card): PurchasePick => {
     let pick: Omit<PurchasePick, 'card' | 'cents'> = { rate: card.base, source: 'base', cap: 0 };
     for (let c: CategoryId | undefined = cat; c; c = PARENT[c]) {
@@ -273,7 +282,14 @@ export function rankForPurchase(held: Card[], cat: CategoryId, brand: BrandId | 
     const rot = card.rotating;
     if (rot && rot.rate > pick.rate && (rot.categories.includes(cat) || (PARENT[cat] && rot.categories.includes(PARENT[cat]!))))
       pick = { rate: rot.rate, source: 'rotating', cap: rot.quarterlyCap };
-    return { card, ...pick, cents: pick.rate * centsPerPoint(card, programs, mode) };
+    const accepted = accepts && card.network ? accepts.includes(card.network) : undefined;
+    return { card, ...pick, cents: pick.rate * centsPerPoint(card, programs, mode), accepted };
   });
-  return picks.sort((a, b) => b.cents - a.cents || Number(a.card.program !== 'cash') - Number(b.card.program !== 'cash'));
+  // Cards the merchant won't take go last, whatever they would earn.
+  return picks.sort(
+    (a, b) =>
+      Number(a.accepted === false) - Number(b.accepted === false) ||
+      b.cents - a.cents ||
+      Number(a.card.program !== 'cash') - Number(b.card.program !== 'cash'),
+  );
 }

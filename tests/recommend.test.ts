@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { libraryCards, programs } from '../src/core/catalog';
 import { buildPlan, rankForPurchase, rateFor, rotatingBonus } from '../src/core/recommend';
+import { applyChoices, pickedCategories } from '../src/core/choices';
 import type { Transaction } from '../src/core/types';
 import { loadFixture } from './helpers';
 
@@ -211,5 +212,27 @@ describe('Costco Anywhere Visa', () => {
         expect(r!.rate, c.id).toBeLessThanOrEqual(max);
       }
     }
+  });
+});
+
+describe('pick-your-category cards', () => {
+  const byId = (id: string) => libraryCards.find((c) => c.id === id)!;
+  it('uses the picks, then the defaults', () => {
+    const cash = byId('usbank-cash-plus');
+    expect(applyChoices(cash, undefined).rates).toMatchObject({ utilities: { rate: 5 }, streaming: { rate: 5 }, groceries: { rate: 2 } });
+    const mine = applyChoices(cash, [['transit', 'entertainment'], ['gas']]);
+    expect(mine.rates.transit?.rate).toBe(5);
+    expect(mine.rates.gas?.rate).toBe(2);
+    expect(mine.rates.utilities).toBeUndefined();
+    expect(rateFor(mine, 'transit').rate).toBe(5);
+  });
+  it('ignores picks that are not offered or repeat', () => {
+    const cash = byId('usbank-cash-plus');
+    expect(pickedCategories(cash, [['gas', 'transit', 'transit'], []])).toEqual([['transit'], ['groceries']]);
+  });
+  it('gives Custom Cash your top eligible category', () => {
+    const cc = byId('citi-custom-cash');
+    expect(applyChoices(cc, undefined, { groceries: 900, other: 5000, gas: 200 }).picked).toEqual(['groceries']);
+    expect(applyChoices(cc, [['gas']], { groceries: 900 }).picked).toEqual(['gas']);
   });
 });

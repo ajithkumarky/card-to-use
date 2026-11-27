@@ -5,6 +5,7 @@ import type { ColumnMap, ParsedFile } from '../core/parse';
 import { centsPerPoint, matchCardLabel, rateFor, rotatingBonus, type Plan } from '../core/recommend';
 import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type PointMode, type ProgramId, type Transaction } from '../core/types';
 import { fullName, rateText, usd } from './format';
+import type { Choices } from '../core/choices';
 
 const label = (c: CategoryId) => CATEGORY_LABELS[c];
 /** "2026-12-14" → "Dec 14". */
@@ -163,9 +164,44 @@ interface WalletProps {
   onCustom: (c: Card) => void;
   rotating: Record<string, CategoryId[]>;
   onRotating: (id: string, cats: CategoryId[]) => void;
+  choices: Choices;
+  onChoice: (id: string, picks: CategoryId[][]) => void;
 }
 
-export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating }: WalletProps) {
+/** Category pickers for a pick-your-category card (Cash+, Customized Cash, Custom Cash). */
+function ChoicePicker({ card, picks, onChoice }: { card: Card; picks: CategoryId[][] | undefined; onChoice: (picks: CategoryId[][]) => void }) {
+  const choice = card.choice!;
+  const current = choice.tiers.map((t, i) => picks?.[i] ?? (choice.auto ? [] : t.defaults));
+  const used = new Set(current.flat());
+  const set = (i: number, j: number, v: string) =>
+    onChoice(current.map((tier, k) => (k !== i ? tier : (Object.assign([...tier], { [j]: v }) as string[]).filter(Boolean) as CategoryId[])));
+  return (
+    <div className="choice">
+      <b>{choice.auto ? 'Picks your top category ' : 'You pick the categories, '}{choice.period}.</b>
+      {choice.tiers.map((t, i) =>
+        Array.from({ length: t.count }, (_, j) => {
+          const value = current[i][j] ?? '';
+          return (
+            <label key={`${i}-${j}`}>
+              {t.rate}% {t.count > 1 ? `pick ${j + 1}` : 'category'}
+              {t.cap ? <small> (first {usd(t.cap / (choice.period.includes('month') ? 12 : 4))} a {choice.period.includes('month') ? 'month' : 'quarter'})</small> : null}
+              <select value={value} onChange={(e) => set(i, j, e.target.value)}>
+                {choice.auto && <option value="">{card.picked?.length && !picks?.[i]?.length ? `Top in your file: ${label(card.picked[i] ?? card.picked[0])}` : 'Your top category'}</option>}
+                {t.options.map((o) => (
+                  <option key={o} value={o} disabled={o !== value && used.has(o)}>
+                    {label(o)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }),
+      )}
+    </div>
+  );
+}
+
+export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating, choices, onChoice }: WalletProps) {
   const ids = held.map((c) => c.id);
   const available = all.filter((c) => !ids.includes(c.id));
   const [pick, setPick] = useState('');
@@ -265,6 +301,7 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
                   </details>
                 </div>
               )}
+              {c.choice && <ChoicePicker card={c} picks={choices[c.id]} onChoice={(p) => onChoice(c.id, p)} />}
               {c.notes && <p className="note">{c.notes}</p>}
               {sum && (
                 <>

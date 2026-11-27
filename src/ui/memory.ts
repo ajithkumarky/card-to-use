@@ -1,14 +1,16 @@
+import type { Choices } from '../core/choices';
 import { CATEGORY_IDS, type Card, type CategoryId, type PointMode } from '../core/types';
 
 /**
  * What the app remembers in this browser between visits: the cards you hold, cards you added yourself,
- * this quarter's rotating categories, merchant category fixes and the point-value setting.
+ * this quarter's rotating categories, the categories picked on choose-your-category cards, merchant category fixes and the point-value setting.
  * Transactions, file contents and card-number labels are never saved.
  */
 export interface Memory {
   held: string[];
   custom: Card[];
   rotating: Record<string, CategoryId[]>;
+  choices: Choices;
   overrides: Record<string, CategoryId>;
   mode: PointMode;
 }
@@ -30,10 +32,14 @@ export function recall(): Memory | null {
     const rotating: Record<string, CategoryId[]> = {};
     if (isObject(m.rotating))
       for (const [k, v] of Object.entries(m.rotating)) if (Array.isArray(v)) rotating[k] = v.filter(isCategory);
+    const choices: Choices = {};
+    if (isObject(m.choices))
+      for (const [k, v] of Object.entries(m.choices))
+        if (Array.isArray(v)) choices[k] = v.map((tier) => (Array.isArray(tier) ? tier.filter(isCategory) : []));
     const overrides: Record<string, CategoryId> = {};
     if (isObject(m.overrides)) for (const [k, v] of Object.entries(m.overrides)) if (isCategory(v)) overrides[k] = v;
     const mode: PointMode = m.mode === 'cash' ? 'cash' : 'best';
-    return { held, custom, rotating, overrides, mode };
+    return { held, custom, rotating, choices, overrides, mode };
   } catch {
     return null;
   }

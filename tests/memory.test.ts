@@ -20,13 +20,13 @@ afterEach(() => {
 describe('memory', () => {
   it('returns nothing when storage is unavailable', () => {
     expect(recall()).toBeNull();
-    expect(() => remember({ held: [], custom: [], rotating: {}, overrides: {}, mode: 'best' })).not.toThrow();
+    expect(() => remember({ held: [], custom: [], rotating: {}, choices: {}, overrides: {}, mode: 'best' })).not.toThrow();
   });
 
   it('round-trips choices and forgets them', () => {
     fakeStorage();
-    remember({ held: ['amex-gold'], custom: [], rotating: { 'discover-it': ['gas'] }, overrides: { 'corner bistro': 'dining' }, mode: 'cash' });
-    expect(recall()).toEqual({ held: ['amex-gold'], custom: [], rotating: { 'discover-it': ['gas'] }, overrides: { 'corner bistro': 'dining' }, mode: 'cash' });
+    remember({ held: ['amex-gold'], custom: [], rotating: { 'discover-it': ['gas'] }, choices: { 'usbank-cash-plus': [['utilities', 'transit'], ['gas']] }, overrides: { 'corner bistro': 'dining' }, mode: 'cash' });
+    expect(recall()).toEqual({ held: ['amex-gold'], custom: [], rotating: { 'discover-it': ['gas'] }, choices: { 'usbank-cash-plus': [['utilities', 'transit'], ['gas']] }, overrides: { 'corner bistro': 'dining' }, mode: 'cash' });
     forget();
     expect(recall()).toBeNull();
   });
@@ -34,7 +34,7 @@ describe('memory', () => {
   it('drops malformed saved data', () => {
     const data = fakeStorage();
     data.set('card-to-use:v1', JSON.stringify({ held: ['a', 3], rotating: { x: ['gas', 'bogus'] }, overrides: { y: 'nope' }, custom: [{ id: 'z' }], mode: 'weird' }));
-    expect(recall()).toEqual({ held: ['a'], custom: [], rotating: { x: ['gas'] }, overrides: {}, mode: 'best' });
+    expect(recall()).toEqual({ held: ['a'], custom: [], rotating: { x: ['gas'] }, choices: {}, overrides: {}, mode: 'best' });
     data.set('card-to-use:v1', '{not json');
     expect(recall()).toBeNull();
   });
