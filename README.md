@@ -2,7 +2,7 @@
 
 Upload a credit card transaction export, tick the cards you hold, and see which card to use for each spending category, with estimated yearly rewards.
 
-**Nothing leaves the browser, and your purchases are never stored.** Files are read in the page, and there is no server code, no analytics and no cookies. Once you pick cards, the app remembers your cards, cards you added, rotating categories, merchant fixes and the point-value setting in this browser's `localStorage` (`src/ui/memory.ts`), so a return visit skips the how-it-works page. Transactions, file contents and card-number labels are never saved. **Forget me** under the file box clears everything. Fonts are self-hosted, and the Content-Security-Policy in `public/_headers` blocks requests to any other site.
+**Nothing leaves the browser, and your purchases are never stored.** Files are read in the page, and there are no analytics and no cookies. The only server code is a small Worker that publishes this quarter's rotating 5% categories (see below); it never receives anything about you. Once you pick cards, the app remembers your cards, cards you added, rotating categories, merchant fixes and the point-value setting in this browser's `localStorage` (`src/ui/memory.ts`), so a return visit skips the how-it-works page. Transactions, file contents and card-number labels are never saved. **Forget me** under the file box clears everything. Fonts are self-hosted, and the Content-Security-Policy in `public/_headers` blocks requests to any other site.
 
 > Not financial advice. Rates, caps, fees, APRs and point values are approximate and can change; check the issuer's terms.
 
@@ -26,7 +26,7 @@ npm run build      # type-check and build to dist/
 
 ## Deploy to Cloudflare
 
-The app is static files served by a Worker with no script (`wrangler.jsonc`).
+The app is static files plus the small rotating-categories script (`wrangler.jsonc`). The first `npm run deploy` creates the `ROTATING` KV namespace automatically.
 
 **Option A: Git integration (recommended).** In the Cloudflare dashboard go to Workers & Pages → Create → Import a repository, pick this repo, and set:
 - Build command: `npm run build`
@@ -49,7 +49,18 @@ No code changes are needed; Access puts a sign-in page in front of the app.
 
 ## Updating card data
 
-Edit `src/data/cards.json` and bump `asOf`. Rates are per dollar (points) or percent (cash back); `cap` is a yearly dollar limit for that rate. Rotating 5% cards (Freedom Flex, Discover it) ship with no categories set: the app asks the person to tick this quarter's categories from the issuer's site.
+Edit `src/data/cards.json` and bump `asOf`. Rates are per dollar (points) or percent (cash back); `cap` is a yearly dollar limit for that rate. Rotating 5% cards (Freedom Flex, Discover it) get this quarter's categories from the crawler below; the person can still change the ticks, which are saved per quarter.
+
+## Rotating 5% categories crawler
+
+`worker/index.ts` runs on a daily cron (13:00 UTC) on the Workers free plan:
+
+- **Discover it:** reads the JSON that Discover's own 5% calendar page loads (`card.discover.com/.../offer-categories`).
+- **Freedom Flex:** reads Chase's quarterly press release (`media.chase.com/news/chase-freedom-YYYY-qN-categories`) for this quarter and the next.
+
+`src/core/rotating.ts` turns the issuer's wording into the app's categories ("Restaurants" → Dining). Parts that aren't one of the app's categories (Home Improvement Stores, charity donations) are shown but not counted. Every offer is checked (the quarter's dates, a sensible title, 1–8 categories) before it's stored, and a failed or odd scrape keeps the previous data. The result goes to KV under `feed` and the app reads it from `/api/rotating`; if that fails, the copy in `src/data/rotating.json` is used. The `status` field in `/api/rotating` says whether each source worked on the last run.
+
+Cost: cron triggers, KV (one read per page load, one write a day) and the `/api/*` requests fit the free plan; static files never run the script. To run the crawl locally: `npx wrangler dev --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled` and `http://localhost:8787/api/rotating`. Refresh the bundled copy from time to time by pasting `/api/rotating` output into `src/data/rotating.json` (drop the `status` field).
 
 The catalog covers about 80 personal and popular business cards from Chase, American Express, Citi, Capital One, U.S. Bank, Wells Fargo, Bank of America, Discover, Barclays and Bilt, plus airline, hotel and retail co-brands. Rates, fees and APR ranges were checked in November 2026 against issuer pages where they could be read, and against NerdWallet, The Points Guy and Bankrate review pages where issuer pages render only with JavaScript (mainly American Express). APRs are shown as approximate ranges. Check the issuer's current terms before relying on them.
 

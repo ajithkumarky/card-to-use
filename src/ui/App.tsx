@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
 import { buildPlan } from '../core/recommend';
+import { isFeed, localQuarter, offerFor, quarterLabel, type RotatingFeed } from '../core/rotating';
+import bundledRotating from '../data/rotating.json';
 import type { Card, CategoryId, PointMode } from '../core/types';
 import { groupLabel } from '../core/categories';
 import { usd } from './format';
@@ -22,6 +24,9 @@ const TABS: [Tab, string][] = [
 const SAMPLE = readTable(sampleTable());
 const EMPTY = readTable([['Date', 'Description', 'Amount']]);
 const SAVED = recall();
+const QUARTER = localQuarter();
+/** Saved ticks are kept per quarter ("discover-it@2026-Q4") so last quarter's choices don't carry over. */
+const tickKey = (id: string) => `${id}@${QUARTER}`;
 
 type Source = 'none' | 'sample' | 'file';
 
@@ -48,13 +53,29 @@ export function App() {
   const [readError, setReadError] = useState('');
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [feed, setFeed] = useState<RotatingFeed>(bundledRotating as RotatingFeed);
+
+  // This quarter's rotating categories, crawled from the issuers' sites by the Worker's daily job.
+  // Nothing is sent; if the request fails (or in `npm run dev`) the copy bundled with the app is used.
+  useEffect(() => {
+    let live = true;
+    fetch('/api/rotating', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((f: unknown) => { if (live && isFeed(f)) setFeed(f); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   const allCards = useMemo(
     () =>
-      [...libraryCards, ...custom].map((c) =>
-        c.rotating ? { ...c, rotating: { ...c.rotating, categories: rotating[c.id] ?? c.rotating.categories } } : c,
-      ),
-    [custom, rotating],
+      [...libraryCards, ...custom].map((c) => {
+        if (!c.rotating) return c;
+        const offer = offerFor(feed, c.id, QUARTER);
+        // Your own ticks for this quarter win, then the issuer's list, then older ticks saved before quarters were tracked.
+        const categories = rotating[tickKey(c.id)] ?? offer?.categories ?? rotating[c.id] ?? c.rotating.categories;
+        return { ...c, rotating: { ...c.rotating, categories, offer, quarter: offer ? quarterLabel(offer.quarter) : c.rotating.quarter } };
+      }),
+    [custom, rotating, feed],
   );
   const heldCards = useMemo(() => held.map((id) => allCards.find((c) => c.id === id)).filter((c): c is Card => !!c), [held, allCards]);
   const missing = missingColumns(cols);
@@ -289,7 +310,7 @@ export function App() {
               onHeld={changeHeld}
               onCustom={(c) => { setCustom((x) => [...x, c]); changeHeld([...held, c.id]); }}
               rotating={rotating}
-              onRotating={(id, cats) => setRotating((r) => ({ ...r, [id]: cats }))}
+              onRotating={(id, cats) => setRotating((r) => ({ ...r, [tickKey(id)]: cats }))}
             />
           )}
           {loaded && tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
