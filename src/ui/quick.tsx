@@ -6,6 +6,7 @@ import { findMerchant, MERCHANTS } from '../core/merchants';
 import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type Network, type PointMode } from '../core/types';
 import { rateText, usd } from './format';
 import { CardArt, Mini } from './views';
+import { StaleNotice } from './rotatingNotice';
 
 /** Places to pay, offered as suggestions: the merchant directory plus the brands whose cards pay a bonus. */
 const SUGGESTIONS = [...new Set([...MERCHANTS.map((m) => m.name), ...Object.values(BRANDS).map((b) => b.name.split(',')[0])])].sort((a, b) =>
@@ -114,6 +115,7 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
           ))}
         </div>
       )}
+      {best && held.filter((c) => c.rotating?.stale).map((c) => <StaleNotice key={c.id} card={c} />)}
       {best && (
         <div className="answer" aria-live="polite">
           <div className="answer-card">

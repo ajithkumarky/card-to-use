@@ -13,6 +13,7 @@ import {
   parseLongDate,
   quarterBounds,
   quarterOf,
+  staleness,
   type RotatingFeed,
 } from '../src/core/rotating';
 import worker, { crawl } from '../worker/index';
@@ -118,6 +119,23 @@ describe('mergeFeed', () => {
   it('finds the offer for a quarter', () => {
     expect(offerFor(prev, 'discover-it', '2026-Q4')?.categories).toEqual(['dining', 'entertainment', 'utilities']);
     expect(offerFor(prev, 'discover-it', '2027-Q1')).toBeUndefined();
+  });
+});
+
+describe('staleness', () => {
+  const feed = bundled as RotatingFeed;
+  it('is unset while the feed covers this quarter', () => {
+    expect(staleness(feed, 'discover-it', '2026-Q4')).toBeUndefined();
+  });
+  it('flags a crawled card once the quarter moves past the feed, with the newest known offer', () => {
+    const s = staleness(feed, 'discover-it', '2027-Q1')!;
+    expect(s.quarter).toBe('2027-Q1');
+    expect(s.lastOffer?.quarter).toBe('2026-Q4');
+    expect(s.checkedAt).toBe(feed.checkedAt);
+    expect(staleness({ ...feed, offers: {} }, 'chase-freedom-flex', '2027-Q1')?.lastOffer).toBeUndefined();
+  });
+  it('ignores cards the crawler does not cover', () => {
+    expect(staleness(feed, 'my-custom-card', '2027-Q1')).toBeUndefined();
   });
 });
 

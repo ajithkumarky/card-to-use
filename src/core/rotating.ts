@@ -44,13 +44,21 @@ export interface RotatingFeed {
 
 export type SourceId = 'discover' | 'chase-freedom';
 
-export const SOURCES: Record<SourceId, { name: string; cards: string[] }> = {
-  discover: { name: 'Discover 5% calendar', cards: ['discover-it'] },
-  'chase-freedom': { name: 'Chase Freedom press release', cards: ['chase-freedom-flex'] },
+export const SOURCES: Record<SourceId, { name: string; cards: string[]; page: string }> = {
+  discover: { name: 'Discover 5% calendar', cards: ['discover-it'], page: 'https://www.discover.com/credit-cards/cash-back/cashback-calendar.html' },
+  'chase-freedom': {
+    name: 'Chase Freedom press release',
+    cards: ['chase-freedom-flex'],
+    page: 'https://www.chase.com/personal/credit-cards/education/rewards-benefits/guide-to-chase-freedom-flex-rotating-bonus-categories',
+  },
 };
 
-export const DISCOVER_URL = 'https://card.discover.com/cardissuer/public/rewards/offer/v1/offer-categories';
+/** The issuer page where a person can read a crawled card's categories themselves. */
+export const issuerPage = (cardId: string) => Object.values(SOURCES).find((s) => s.cards.includes(cardId))?.page;
+
 export const DISCOVER_PAGE = 'https://www.discover.com/credit-cards/cash-back/cashback-calendar.html';
+export const DISCOVER_URL = 'https://card.discover.com/cardissuer/public/rewards/offer/v1/offer-categories';
+
 export const chaseUrl = (quarter: string) => {
   const [y, q] = quarter.split('-Q');
   return `https://media.chase.com/news/chase-freedom-${y}-q${q}-categories`;
@@ -242,6 +250,27 @@ export function mergeFeed(
 export function offerFor(feed: RotatingFeed | null, cardId: string, quarter: string): RotatingOffer | undefined {
   return feed?.offers[cardId]?.find((o) => o.quarter === quarter);
 }
+
+export interface Staleness {
+  /** The quarter the app needs, like "2027-Q1". */
+  quarter: string;
+  /** The newest offer the feed does have for this card, from an earlier quarter. */
+  lastOffer?: RotatingOffer;
+  /** When the crawler last ran, ISO time. */
+  checkedAt: string;
+}
+
+/**
+ * Set when a crawled card has no categories for this quarter: the issuer hasn't been read since the
+ * quarter changed (the crawl is failing, or the issuer's page moved). The app then warns and asks for ticks.
+ */
+export function staleness(feed: RotatingFeed, cardId: string, quarter: string): Staleness | undefined {
+  if (!crawledCards.has(cardId) || offerFor(feed, cardId, quarter)) return undefined;
+  const lastOffer = (feed.offers[cardId] ?? []).filter((o) => o.quarter < quarter).pop();
+  return { quarter, lastOffer, checkedAt: feed.checkedAt };
+}
+
+const crawledCards = new Set(Object.values(SOURCES).flatMap((s) => s.cards));
 
 /** Loose shape check for a feed fetched over the network. */
 export function isFeed(v: unknown): v is RotatingFeed {

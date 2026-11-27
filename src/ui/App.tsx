@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
 import { buildPlan } from '../core/recommend';
-import { isFeed, localQuarter, offerFor, quarterLabel, type RotatingFeed } from '../core/rotating';
+import { isFeed, localQuarter, offerFor, quarterLabel, staleness, type RotatingFeed } from '../core/rotating';
 import bundledRotating from '../data/rotating.json';
 import type { Card, CategoryId, PointMode } from '../core/types';
 import { BRANDS, CATEGORY_LABELS, categorize } from '../core/categories';
@@ -87,7 +87,8 @@ export function App() {
         const offer = offerFor(feed, c.id, QUARTER);
         // Your own ticks for this quarter win, then the issuer's list, then older ticks saved before quarters were tracked.
         const categories = rotating[tickKey(c.id)] ?? offer?.categories ?? rotating[c.id] ?? c.rotating.categories;
-        return { ...c, rotating: { ...c.rotating, categories, offer, quarter: offer ? quarterLabel(offer.quarter) : c.rotating.quarter } };
+        const stale = rotating[tickKey(c.id)] ? undefined : staleness(feed, c.id, QUARTER);
+        return { ...c, rotating: { ...c.rotating, categories, offer, stale, quarter: quarterLabel(QUARTER) } };
       }),
     [custom, rotating, feed],
   );
