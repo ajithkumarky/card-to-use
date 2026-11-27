@@ -71,6 +71,22 @@ export interface Choice {
   period: string;
 }
 
+/** A public welcome offer, as listed on the date given. Offers change often. */
+export interface Bonus {
+  /** Points or miles in the card's program, or dollars. Zero for a first-year cash-back match. */
+  amount: number;
+  unit: 'points' | 'dollars' | 'match';
+  /** Minimum spend in dollars, within `months` of opening. */
+  spend: number;
+  months: number;
+  /** Statement or travel credit that comes with the bonus, in dollars. */
+  extraDollars?: number;
+  /** Annual fee in the first year, where it differs (0 when waived). */
+  firstYearFee?: number;
+  asOf: string;
+  source: string;
+}
+
 export interface Card {
   id: string;
   name: string;
@@ -84,6 +100,7 @@ export interface Card {
   brands?: Partial<Record<BrandId, Rate>>;
   rotating?: Rotating;
   choice?: Choice;
+  bonus?: Bonus;
   /** Categories now earning a chosen-category rate, filled in when choices are applied. */
   picked?: CategoryId[];
   /** The same, per tier of `choice`. */
