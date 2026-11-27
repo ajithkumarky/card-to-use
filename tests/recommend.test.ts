@@ -115,3 +115,55 @@ describe('plan', () => {
     expect(rotatingBonus(flex, plan, programs, 'cash')).toBeCloseTo(45, 5);
   });
 });
+
+describe('brand bonuses', () => {
+  it('pays an airline card its bonus on that airline only', () => {
+    const plan = buildPlan({
+      transactions: [tx('DELTA AIR LINES 0062345678901', 1000), tx('UNITED 0162345678901', 1000)],
+      months: 12,
+      held: [card('amex-delta-platinum'), card('chase-united-quest'), card('citi-double-cash')],
+      programs,
+      mode: 'best',
+    });
+    const delta = plan.categories.find((p) => p.brand === 'delta')!;
+    const united = plan.categories.find((p) => p.brand === 'united')!;
+    expect(delta.category).toBe('airfare');
+    expect(delta.segments[0].card.id).toBe('amex-delta-platinum');
+    expect(delta.segments[0].rate).toBe(3);
+    expect(united.segments[0].card.id).toBe('chase-united-quest');
+    expect(united.segments[0].rate).toBe(4);
+  });
+
+  it('uses the category rate when it beats the brand rate', () => {
+    // Sapphire Reserve's 4x flights at 2.05¢ beats Delta Gold's 2x at 1.2¢.
+    expect(rateFor(card('amex-delta-gold'), 'airfare', 'delta').rate).toBe(2);
+    const plan = buildPlan({ transactions: [tx('DELTA AIR LINES', 1000)], months: 12, held: [card('amex-delta-gold'), card('chase-sapphire-reserve')], programs, mode: 'best' });
+    expect(plan.categories[0].segments[0].card.id).toBe('chase-sapphire-reserve');
+  });
+
+  it('keeps a hotel card bonus to its own chain', () => {
+    const aspire = card('amex-hilton-aspire');
+    expect(rateFor(aspire, 'hotels', 'hilton').rate).toBe(14);
+    expect(rateFor(aspire, 'hotels', 'marriott').rate).toBe(7);
+    expect(rateFor(aspire, 'hotels').rate).toBe(7);
+  });
+
+  it('applies a brand cap and then the base rate', () => {
+    const plan = buildPlan({ transactions: [tx('INSTACART', 8000)], months: 12, held: [card('chase-instacart')], programs, mode: 'cash' });
+    const segs = plan.categories[0].segments;
+    expect(segs.map((s) => [s.rate, s.spend])).toEqual([[5, 6000], [1, 2000]]);
+  });
+
+  it('drops the brand when a merchant is moved to another category', () => {
+    const plan = buildPlan({
+      transactions: [tx('HILTON GARDEN INN', 500)],
+      months: 12,
+      held: [card('amex-hilton-surpass')],
+      programs,
+      mode: 'best',
+      overrides: { 'hilton garden inn': 'dining' },
+    });
+    expect(plan.categories[0].category).toBe('dining');
+    expect(plan.categories[0].brand).toBeUndefined();
+  });
+});

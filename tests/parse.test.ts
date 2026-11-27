@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categorize, merchantKey } from '../src/core/categories';
+import { brandOf, categorize, merchantKey } from '../src/core/categories';
 import { missingColumns, monthsCovered, parseAmount, parseDate, readTable } from '../src/core/parse';
 import { loadFixture } from './helpers';
 
@@ -89,5 +89,22 @@ describe('categories', () => {
   });
   it('lets a merchant fix override every rule', () => {
     expect(categorize('STARBUCKS STORE 08812', '', { [merchantKey('STARBUCKS STORE 1')]: 'groceries' })).toBe('groceries');
+  });
+});
+
+describe('brands', () => {
+  it('finds airline and hotel brands, and leaves look-alikes alone', () => {
+    const b = (d: string) => brandOf(d, categorize(d, ''));
+    expect(b('DELTA AIR LINES ATLANTA')).toBe('delta');
+    expect(b('SOUTHWES 5262345678901')).toBe('southwest');
+    expect(b('SOUTHWEST AIRLINES (526')).toBe('southwest');
+    expect(b('SOUTHWEST GAS CORP')).toBeUndefined();
+    expect(b('HAMPTON INN DENVER')).toBe('hilton');
+    expect(b('COURTYARD BY MARRIOTT')).toBe('marriott');
+    expect(b('HOLIDAY INN EXPRESS')).toBe('ihg');
+    expect(b('WHOLEFDS MKT 10234')).toBe('wholefoods');
+    expect(b('STARBUCKS')).toBeUndefined();
+    expect(categorize('HAMPTON INN DENVER', '')).toBe('hotels');
+    expect(categorize('SOUTHWEST GAS CORP', 'Utilities')).toBe('utilities');
   });
 });

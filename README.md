@@ -9,8 +9,8 @@ Upload a credit card transaction export, tick the cards you hold, and see which 
 ## How it works
 
 - `src/core/parse.ts` finds the header row, guesses the date, description, amount (or debit/credit), category and card columns, and drops payments.
-- `src/core/categories.ts` sorts merchants into categories: merchant-name rules first (Costco is a warehouse club, Uber Eats is dining), then the bank's own category. Merchant fixes made in the app override both.
-- `src/core/recommend.ts` ranks your cards per category by cents earned per dollar, fills yearly caps before moving to the next card, and compares the result against the cards you actually used (if the file has a card column) or your single best card.
+- `src/core/categories.ts` sorts merchants into categories: brand names first (Hampton Inn is a Hilton hotel), then merchant-name rules (Costco is a warehouse club, Uber Eats is dining), then the bank's own category. Merchant fixes made in the app override all of them.
+- `src/core/recommend.ts` ranks your cards per category (and per brand within a category) by cents earned per dollar, fills yearly caps before moving to the next card, and compares the result against the cards you actually used (if the file has a card column) or your single best card.
 - `src/data/cards.json` is the card catalog: rates, caps, fees, APR ranges, rewards program and point values (best realistic value and cash-out value), with an `asOf` date.
 
 Supported files: CSV/TSV exports (tested with Chase, Amex, Citi, Capital One and Discover layouts) and `.xlsx`.
@@ -53,9 +53,10 @@ Edit `src/data/cards.json` and bump `asOf`. Rates are per dollar (points) or per
 
 The catalog covers about 80 personal and popular business cards from Chase, American Express, Citi, Capital One, U.S. Bank, Wells Fargo, Bank of America, Discover, Barclays and Bilt, plus airline, hotel and retail co-brands. Rates, fees and APR ranges were checked in November 2026 against issuer pages where they could be read, and against NerdWallet, The Points Guy and Bankrate review pages where issuer pages render only with JavaScript (mainly American Express). APRs are shown as approximate ranges. Check the issuer's current terms before relying on them.
 
+Brand bonuses (3x on Delta, 12x at Hilton, 5% at Whole Foods) live in a card's `brands` field. `BRANDS` in `src/core/categories.ts` lists the merchant names for each brand; those purchases get their own row in the plan (for example "Flights: Delta"), and a card earns the better of its brand rate and its category rate there.
+
 What the catalog leaves out on purpose:
 - Bonuses earned only through an issuer's travel portal (Chase Travel, Amex Travel, Capital One Travel, Citi Travel and so on).
-- Bonuses at one airline or hotel brand (for example 3x on Delta or 12x at Hilton), because the app's categories treat all airlines and all hotels alike. Each card's notes say what isn't counted.
 - Credits, free nights, lounge access, status and welcome offers.
 - Combined caps shared by several categories are applied to each category separately, and each card's note says so.
 

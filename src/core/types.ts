@@ -9,6 +9,14 @@ export const PROGRAM_IDS = [
   'delta', 'united', 'aa', 'southwest', 'jetblue', 'aeroplan', 'avios',
   'marriott', 'hilton', 'hyatt', 'ihg', 'wyndham', 'choice', 'cash',
 ] as const;
+/** Merchants whose own cards pay a bonus there (an airline, a hotel chain, a store). */
+export const BRAND_IDS = [
+  'delta', 'united', 'american', 'southwest', 'jetblue', 'aircanada', 'avios',
+  'marriott', 'hilton', 'hyatt', 'ihg', 'wyndham', 'choice',
+  'wholefoods', 'doordash', 'instacart',
+] as const;
+export type BrandId = (typeof BRAND_IDS)[number];
+
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type PointMode = 'best' | 'cash';
 
@@ -44,6 +52,8 @@ export interface Card {
   program: ProgramId;
   base: number;
   rates: Partial<Record<CategoryId, Rate>>;
+  /** Bonus rates at one brand's own merchants (Delta flights, Hilton hotels). The better of this and the category rate applies. */
+  brands?: Partial<Record<BrandId, Rate>>;
   rotating?: Rotating;
   color: string;
   light?: boolean;
