@@ -293,3 +293,31 @@ export function rankForPurchase(
       Number(a.card.program !== 'cash') - Number(b.card.program !== 'cash'),
   );
 }
+
+/** Yearly spend per category, and per brand within a category, from a file's purchases. */
+export function yearlySpendByGroup(transactions: Transaction[], months: number, overrides: Record<string, CategoryId> = {}): Map<string, number> {
+  const yearly = 12 / Math.max(0.5, months);
+  const spend = new Map<string, number>();
+  for (const t of transactions) {
+    const cat = categorize(t.description, t.bankCategory, overrides);
+    const key = groupKey(cat, brandOf(t.description, cat));
+    spend.set(key, (spend.get(key) ?? 0) + t.amount * yearly);
+  }
+  return spend;
+}
+
+/** Yearly rewards in dollars from routing each group to the best of `held`, and each card's share. Fast enough to try thousands of wallets. */
+export function earnedWith(spend: Map<string, number>, held: Card[], programs: Programs, mode: PointMode): { total: number; byCard: Map<string, number> } {
+  const byCard = new Map<string, number>();
+  let total = 0;
+  if (!held.length) return { total, byCard };
+  for (const g of ALL_GROUPS) {
+    const s = spend.get(g.key) ?? 0;
+    if (s < 1) continue;
+    for (const seg of allocate(s, g.cat, g.brand, held, programs, mode)) {
+      total += seg.earned;
+      byCard.set(seg.card.id, (byCard.get(seg.card.id) ?? 0) + seg.earned);
+    }
+  }
+  return { total, byCard };
+}

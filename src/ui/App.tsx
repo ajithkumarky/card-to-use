@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
-import { buildPlan } from '../core/recommend';
+import { buildPlan, yearlySpendByGroup } from '../core/recommend';
 import { isFeed, localQuarter, offerFor, quarterLabel, staleness, type RotatingFeed } from '../core/rotating';
 import bundledRotating from '../data/rotating.json';
 import type { Card, CategoryId, PointMode } from '../core/types';
@@ -10,6 +10,7 @@ import { applyChoices, type Choices } from '../core/choices';
 import { usd } from './format';
 import { forget, recall, remember } from './memory';
 import { QuickPick } from './quick';
+import { SuggestionsView } from './suggest';
 import { ColumnGuide } from './columnGuide';
 import { readFile } from './readFile';
 import { SAMPLE_HELD, sampleTable } from './sample';
@@ -17,9 +18,10 @@ import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, This
 import { fullName } from './format';
 
 type Page = 'plan' | 'use' | 'cards';
-type Tab = 'plan' | 'wallet' | 'merchants' | 'columns';
+type Tab = 'plan' | 'suggest' | 'wallet' | 'merchants' | 'columns';
 const TABS: [Tab, string][] = [
   ['plan', 'Which card where'],
+  ['suggest', 'Cards to consider'],
   ['wallet', 'My cards'],
   ['merchants', 'Merchants'],
   ['columns', 'File columns'],
@@ -115,6 +117,7 @@ export function App() {
     [held, allCards, choices, spendByCat],
   );
   const months = monthsOverride ?? monthsCovered(transactions);
+  const yearlySpend = useMemo(() => yearlySpendByGroup(transactions, months, overrides), [transactions, months, overrides]);
   const plan = useMemo(
     () => buildPlan({ transactions, months, held: heldCards, programs, mode, overrides, cardLabels }),
     [transactions, months, heldCards, mode, overrides, cardLabels],
@@ -462,6 +465,12 @@ export function App() {
               <PlanView plan={plan} held={heldCards} mode={mode} versus={versus} onRotating={() => setTab('wallet')} />
             ))}
           {loaded && tab === 'wallet' && wallet}
+          {loaded && tab === 'suggest' &&
+            (showNumbers ? (
+              <SuggestionsView spend={yearlySpend} held={heldCards} library={allCards} mode={mode} />
+            ) : (
+              <p>Load a file and pick your cards to see which cards would add the most.</p>
+            ))}
           {loaded && tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
           {loaded && tab === 'columns' && (
             <ColumnsView

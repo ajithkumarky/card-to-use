@@ -194,3 +194,22 @@ details.issuer summary small{font-weight:400;color:var(--mut)}
 .colsum .st.ok{color:var(--gain)}
 .colsum .st.miss{color:var(--bad)}
 @media (max-width:520px){.colsum li{grid-template-columns:1fr}}
+.suggest h3{margin-top:28px}
+.suglist{list-style:none;padding:0;margin:10px 0;display:grid;gap:14px}
+.sug{display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:14px}
+.sug .mini{margin-top:4px}
+.sug>div{flex:1;min-width:0}
+.sug-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;margin:0}
+.sug-v{font-weight:600;white-space:nowrap}
+.sug-v.pos{color:var(--gain)}
+.sug-v.neg{color:var(--bad)}
+.sug-why{margin:4px 0 0;font-size:14px;color:var(--mut)}
+.sug-why b{color:var(--ink)}
+.wallets{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:10px 0}
+.wallet{background:var(--soft);border-radius:12px;padding:14px 16px}
+.wallet ul{list-style:none;padding:0;margin:6px 0 10px;display:grid;gap:6px}
+.wallet li{display:flex;align-items:center;gap:8px;font-size:15px}
+.wallet li .mini{width:34px;height:22px}
+.wallet li .mini::after{left:5px;top:7px;width:7px;height:5px}
+.wallet p{margin:0;font-size:14px}
+.suggest .modebar{flex-wrap:wrap;gap:8px 14px}
