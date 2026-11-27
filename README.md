@@ -42,7 +42,7 @@ No code changes are needed; Access puts a sign-in page in front of the app.
 
 1. In the dashboard, open **Zero Trust** (first time: pick a team name and the Free plan, which covers up to 50 users).
 2. **Access → Applications → Add an application → Self-hosted.**
-3. Application domain: the Worker's address (for example `card-to-use.<your-subdomain>.workers.dev`) or your custom domain. To protect a `workers.dev` address you can also open the Worker → Settings → Domains & Routes and turn on Cloudflare Access there, which creates the application for you.
+3. Application domain: `cards.kidiyoor.com` (the custom domain in `wrangler.jsonc`). Also turn off the `workers.dev` address and preview URLs under the Worker's Settings → Domains & Routes so the app is only reachable through Access.
 4. Add a policy: Action **Allow**, Include **Emails** → list the people you want to invite (or **Emails ending in** for a whole domain).
 5. Login methods: **One-time PIN** works with any email address. Add **Google** under Settings → Authentication if you prefer.
 6. Turn off preview URLs for the Worker, or protect them with the same policy, so the app isn't reachable around Access.
