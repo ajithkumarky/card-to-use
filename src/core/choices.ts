@@ -34,5 +34,5 @@ export function applyChoices(card: Card, picks: CategoryId[][] | undefined, spen
       if (!had || had.rate < tier.rate) rates[c] = tier.cap ? { rate: tier.rate, cap: tier.cap } : { rate: tier.rate };
     }
   });
-  return { ...card, rates, picked: chosen.flat() };
+  return { ...card, rates, picked: chosen.flat(), pickedTiers: chosen };
 }
