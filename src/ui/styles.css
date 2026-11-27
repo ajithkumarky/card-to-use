@@ -111,3 +111,27 @@ td select{min-height:36px;font-size:15px}
 .steps li{padding-left:4px}
 .steps b{display:block;font-size:17px}
 .steps span{color:var(--mut);font-size:15px}
+a.btn{display:inline-flex;align-items:center;text-decoration:none}
+.topnav{background:var(--ink);color:var(--band)}
+.topnav .wrap{display:flex;gap:4px 18px;align-items:center;flex-wrap:wrap;padding:6px max(5vw,16px)}
+.topnav .brand{font-family:Outfit,Inter,sans-serif;font-weight:600;margin-right:auto}
+.topnav a{color:var(--band);text-decoration:none;font-weight:600;font-size:15px;min-height:40px;display:inline-flex;align-items:center;border-bottom:2px solid transparent}
+.topnav a[aria-current=page]{border-color:var(--acc)}
+.quick{max-width:720px}
+label.find.big{font-size:16px;color:var(--ink);font-weight:600;max-width:none}
+label.find.big input{min-height:52px;font-size:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px}
+.pill{min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-size:15px;cursor:pointer}
+.pill[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.answer{border-top:1px solid var(--line);padding-top:18px}
+.answer-card{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:18px;align-items:center;background:var(--soft);border-radius:14px;padding:16px}
+.eyebrow{text-transform:uppercase;letter-spacing:.08em;font-size:13px;font-weight:600;color:var(--mut);margin:0}
+.answer-rate{font-size:20px;font-weight:600;color:var(--gain);margin:2px 0 6px}
+.also{padding-left:22px;margin:16px 0}
+.also{list-style:none;padding:0}
+.also li{margin:10px 0;display:flex;gap:10px;align-items:flex-start}
+.also .mini{margin-top:5px;flex:none}
+.also small{display:block;color:var(--mut);font-size:14px}
+@media (max-width:520px){.answer-card{grid-template-columns:1fr}.answer-card .cc{max-width:220px}}
+.change{margin:14px 0}
+.change summary{cursor:pointer;font-size:15px;color:var(--mut);min-height:40px;display:flex;align-items:center}
