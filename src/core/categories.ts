@@ -40,6 +40,7 @@ export const BRANDS: Record<BrandId, { name: string; pattern: RegExp; category: 
   wholefoods: { name: 'Whole Foods', pattern: /whole\s*foods|wholefds/, category: 'groceries' },
   doordash: { name: 'DoorDash', pattern: /doordash|caviar/, category: 'dining' },
   instacart: { name: 'Instacart', pattern: /instacart/, category: 'groceries' },
+  costcogas: { name: 'Costco gas', pattern: /costco\s*(gas|fuel)/, category: 'gas' },
 };
 
 /** A plan row's name: the category, or the brand within it ("Flights: Delta"). */
@@ -89,6 +90,13 @@ const BANK_RULES: [RegExp, CategoryId][] = [
 ];
 
 export const PAYMENT_PATTERN = /payment|autopay|thank you|pymt|\bpmt\b|balance transfer/i;
+
+/** Rows that move money but aren't purchases and earn no rewards: transfers, pay, interest and card fees. */
+export const NOT_PURCHASE_PATTERN =
+  /\btransfer\b|\bxfer\b|zelle|direct dep|payroll|interest charge|interest paid|late fee|annual (membership )?fee|cash advance|atm withdrawal|foreign transaction fee/i;
+
+/** Bank or budgeting-app categories that aren't card purchases. */
+export const NOT_PURCHASE_CATEGORY = /^(payments?|transfers?|credit card payment|income|paycheck|salary|investments?|interest|fees?\b|fees & adjustments|loan)/i;
 
 /** A short, stable key that groups a merchant's transactions ("STARBUCKS STORE 08812" -> "starbucks store"). */
 export function merchantKey(description: string): string {

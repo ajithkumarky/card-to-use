@@ -188,3 +188,28 @@ describe('what do I use', () => {
     expect([top.card.id, top.source, top.rate, top.cap]).toEqual(['chase-freedom-flex', 'rotating', 5, 1500]);
   });
 });
+
+describe('Costco Anywhere Visa', () => {
+  it('pays 5% on Costco gas, 4% other gas, 2% at Costco and never more than 5%', async () => {
+    const { brandOf, categorize } = await import('../src/core/categories');
+    const costco = card('costco-anywhere-visa');
+    const at = (d: string) => {
+      const cat = categorize(d, '');
+      return rateFor(costco, cat, brandOf(d, cat)).rate;
+    };
+    expect(at('COSTCO GAS #0412')).toBe(5);
+    expect(at('SHELL OIL 5744')).toBe(4);
+    expect(at('COSTCO WHSE #0412')).toBe(2);
+    expect(at('CHIPOTLE 2291')).toBe(3);
+    expect(at('ACME HARDWARE')).toBe(1);
+  });
+
+  it('keeps every catalog rate within what any card pays', () => {
+    for (const c of libraryCards) {
+      for (const r of [...Object.values(c.rates), ...Object.values(c.brands ?? {})]) {
+        const max = c.program === 'cash' ? 10 : 20;
+        expect(r!.rate, c.id).toBeLessThanOrEqual(max);
+      }
+    }
+  });
+});

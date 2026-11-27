@@ -3,7 +3,7 @@ import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
 import { buildPlan } from '../core/recommend';
 import type { Card, CategoryId, PointMode } from '../core/types';
-import { groupLabel } from '../core/categories';
+import { BRANDS, CATEGORY_LABELS } from '../core/categories';
 import { usd } from './format';
 import { forget, recall, remember } from './memory';
 import { QuickPick } from './quick';
@@ -138,6 +138,11 @@ export function App() {
   const single = plan.singleBest?.card.name ?? '';
   const versus = plan.baselineKind === 'actual' ? 'what you earned with the cards you used' : `putting everything on ${single}`;
   const top = [...plan.categories].sort((a, b) => b.earned - a.earned)[0];
+  const fileSpend = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const pct = (earned: number) => `${plan.yearlySpend > 0 ? ((earned / plan.yearlySpend) * 100).toFixed(1) : '0.0'}%`;
+  // Over about 8% back or $500k a year usually means something other than purchases is in the file.
+  const undated = transactions.length > 0 && monthsOverride === null && transactions.filter((t) => t.date).length < transactions.length / 2;
+  const looksHigh = plan.yearlySpend > 500000 || (plan.yearlySpend > 0 && plan.total / plan.yearlySpend > 0.08);
   const loaded = source !== 'none';
   const showNumbers = loaded && !missing.length && !asking && heldCards.length > 0;
 
@@ -213,30 +218,46 @@ export function App() {
             {showNumbers && (
               <>
                 <p className="lede">
-                  Compared with {versus}
+                  Based on {transactions.length} purchases totaling {usd(fileSpend)} over {months} month{months === 1 ? '' : 's'}, scaled to a year.
+                  {plan.baselineKind === 'actual'
+                    ? ' “Now” is what the card used for each purchase earned'
+                    : ` Your file has no card column, so “now” assumes everything goes on ${single}`}
                   {plan.baselineKind === 'actual' && plan.matchedShare < 1 &&
-                    ` (${Math.round(plan.matchedShare * 100)}% of purchases matched to one of your cards; match the rest on File columns)`}
-                  .{top && ` Your biggest earner is ${groupLabel(top.category, top.brand).toLowerCase()} on ${top.segments[0].card.name}.`} Figures are a
-                  year’s estimate from your file, with points at {mode === 'best' ? 'their best realistic value' : 'cash-out value'}.
+                    ` (${Math.round(plan.matchedShare * 100)}% of purchases matched one of your cards; the rest count at 1%; match them on File columns)`}
+                  . Points are valued at {mode === 'best' ? 'their best realistic value' : 'cash-out value'}, and annual fees ({usd(plan.fees)} a year) aren’t subtracted.
+                  {top && ` Your biggest earner is ${top.brand ? BRANDS[top.brand].name : CATEGORY_LABELS[top.category].toLowerCase()} on ${top.segments[0].card.name}.`}
                 </p>
                 <div className="figs">
-                  <div className="hero">
-                    <span className="fig-n">{usd(gain)}</span>
-                    <small>more a year than {plan.baselineKind === 'actual' ? 'with the cards you used' : `using only ${single}`}</small>
-                  </div>
                   <div>
-                    <span className="fig-n">{usd(plan.total)}</span>
-                    <small>rewards a year with this plan</small>
+                    <span className="fig-n">{usd(plan.yearlySpend)}</span>
+                    <small>spent a year</small>
                   </div>
                   <div>
                     <span className="fig-n">{usd(plan.baseline)}</span>
-                    <small>{plan.baselineKind === 'actual' ? 'what you earn now' : `on ${single} alone`}</small>
+                    <small>
+                      rewards now{plan.baselineKind === 'actual' ? '' : ` on ${single} alone`} · {pct(plan.baseline)} back
+                    </small>
                   </div>
-                  <div>
-                    <span className="fig-n">{usd(plan.total - plan.fees)}</span>
-                    <small>net after {usd(plan.fees)} in annual fees</small>
+                  <div className="hero">
+                    <span className="fig-n">{usd(plan.total)}</span>
+                    <small>
+                      rewards with the best card for each purchase · {pct(plan.total)} back
+                      {gain >= 1 && <b className="gain"> +{usd(gain)} a year</b>}
+                    </small>
                   </div>
                 </div>
+                {undated && (
+                  <p className="flag" role="alert">
+                    <b>⚠ Couldn’t read dates</b> for most purchases, so the app assumed the file covers {months} month{months === 1 ? '' : 's'}. If it covers
+                    more, set the months on File columns, or every yearly figure will be too high.
+                  </p>
+                )}
+                {looksHigh && (
+                  <p className="flag" role="alert">
+                    <b>⚠ These numbers look high</b> for one household. Check the months covered on File columns, and look on Merchants for transfers,
+                    rent or bill payments that aren’t card purchases.
+                  </p>
+                )}
               </>
             )}
             {!loaded && heldCards.length > 0 && (

@@ -1,4 +1,4 @@
-import { PAYMENT_PATTERN } from './categories';
+import { NOT_PURCHASE_CATEGORY, NOT_PURCHASE_PATTERN, PAYMENT_PATTERN } from './categories';
 import type { Transaction } from './types';
 
 export type Cell = string | number | boolean | Date | null | undefined;
@@ -20,6 +20,11 @@ export interface ParsedFile {
   columns: ColumnMap;
   /** True when purchases are negative numbers in the amount column (Chase style). */
   purchasesNegative: boolean;
+  /**
+   * The same guess made per card label, for files that combine exports from banks with different sign conventions.
+   * Used while the file-wide setting is left as guessed.
+   */
+  negativeByCard: Record<string, boolean>;
 }
 
 const HEADER_WORDS = /date|desc|merchant|payee|amount|debit|credit|categ|card|account|name|memo|details/i;
@@ -98,14 +103,24 @@ export function readTable(table: Table): ParsedFile {
   const columns = guessColumns(headers);
   const usesSeparateColumns = columns.debit >= 0 || columns.credit >= 0;
   let purchasesNegative = false;
+  const negativeByCard: Record<string, boolean> = {};
   if (!usesSeparateColumns && columns.amount >= 0) {
-    const values = rows
-      .filter((r) => !PAYMENT_PATTERN.test(text(r[columns.description])))
-      .map((r) => parseAmount(r[columns.amount]))
-      .filter(Boolean);
-    purchasesNegative = values.filter((v) => v < 0).length > values.length / 2;
+    const mostlyNegative = (rs: Table) => {
+      const values = rs
+        .filter((r) => !PAYMENT_PATTERN.test(text(r[columns.description])))
+        .map((r) => parseAmount(r[columns.amount]))
+        .filter(Boolean);
+      return values.filter((v) => v < 0).length > values.length / 2;
+    };
+    purchasesNegative = mostlyNegative(rows);
+    if (columns.card >= 0) {
+      const byCard = new Map<string, Table>();
+      for (const r of rows) byCard.set(text(r[columns.card]), [...(byCard.get(text(r[columns.card])) ?? []), r]);
+      // Only labels with a few rows give a reliable guess.
+      for (const [label, rs] of byCard) if (rs.length >= 3) negativeByCard[label] = mostlyNegative(rs);
+    }
   }
-  return { headers, rows, columns, purchasesNegative };
+  return { headers, rows, columns, purchasesNegative, negativeByCard };
 }
 
 export function missingColumns(cols: ColumnMap): string[] {
@@ -122,16 +137,19 @@ export function toTransactions(file: ParsedFile, cols = file.columns, purchasesN
   for (const row of file.rows) {
     const description = text(row[cols.description]);
     const bankCategory = cols.category >= 0 ? text(row[cols.category]) : '';
-    if (PAYMENT_PATTERN.test(description) || /^payments?\b/i.test(bankCategory)) continue;
+    if (PAYMENT_PATTERN.test(description) || NOT_PURCHASE_PATTERN.test(description) || NOT_PURCHASE_CATEGORY.test(bankCategory)) continue;
     let amount = rawAmount(row, cols);
-    if (!separate && purchasesNegative) amount = -amount;
+    const label = cols.card >= 0 ? text(row[cols.card]) : '';
+    // A combined file can mix sign conventions; trust each card's own guess unless the person changed the setting.
+    const negative = purchasesNegative === file.purchasesNegative && cols === file.columns ? (file.negativeByCard[label] ?? purchasesNegative) : purchasesNegative;
+    if (!separate && negative) amount = -amount;
     if (!amount) continue;
     out.push({
       date: cols.date >= 0 ? parseDate(row[cols.date]) : null,
       description,
       amount,
       bankCategory,
-      cardLabel: cols.card >= 0 ? text(row[cols.card]) : '',
+      cardLabel: label,
     });
   }
   return out;
