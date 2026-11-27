@@ -103,3 +103,11 @@ td select{min-height:36px;font-size:15px}
 @media(max-width:860px){.top .grid{grid-template-columns:minmax(0,1fr)}.row{grid-template-columns:minmax(0,1fr) auto}.row .bar{grid-column:1/-1;order:3}.row .pick{grid-column:1/-1;order:4}}
 @media(max-width:600px){table{font-size:13px}th,td{padding:6px 4px}}
 @media(prefers-reduced-motion:no-preference){.bar i{transition:width .5s ease}}
+
+.linkish{background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
+.heldlist{list-style:none;padding:0;margin:8px 0 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 16px}
+.heldlist li{display:flex;gap:10px;align-items:center;min-height:36px;font-size:15px}
+.steps{padding-left:22px;margin:12px 0 16px;display:grid;gap:12px;max-width:760px}
+.steps li{padding-left:4px}
+.steps b{display:block;font-size:17px}
+.steps span{color:var(--mut);font-size:15px}

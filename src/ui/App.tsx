@@ -1,13 +1,15 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { catalog, libraryCards, programs } from '../core/catalog';
 import { missingColumns, monthsCovered, readTable, toTransactions, type ColumnMap, type ParsedFile } from '../core/parse';
 import { buildPlan } from '../core/recommend';
 import type { Card, CategoryId, PointMode } from '../core/types';
 import { groupLabel } from '../core/categories';
 import { usd } from './format';
+import { forget, recall, remember } from './memory';
 import { readFile } from './readFile';
 import { SAMPLE_HELD, sampleTable } from './sample';
-import { CardPicker, ColumnsView, MerchantsView, PlanView, StackNote, WalletView } from './views';
+import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, WalletView } from './views';
+import { fullName } from './format';
 
 type Tab = 'plan' | 'wallet' | 'merchants' | 'columns';
 const TABS: [Tab, string][] = [
@@ -18,22 +20,30 @@ const TABS: [Tab, string][] = [
 ];
 
 const SAMPLE = readTable(sampleTable());
+const EMPTY = readTable([['Date', 'Description', 'Amount']]);
+const SAVED = recall();
+
+type Source = 'none' | 'sample' | 'file';
 
 export function App() {
-  // Everything lives in memory only. Nothing is written to storage or sent over the network.
-  const [file, setFile] = useState<ParsedFile>(SAMPLE);
+  // Transactions live in memory only and are never sent anywhere. Card choices, merchant fixes and settings
+  // are remembered in this browser (see memory.ts) once the person makes one, and "Forget me" clears them.
+  const [source, setSource] = useState<Source>('none');
+  const [file, setFile] = useState<ParsedFile>(EMPTY);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [cols, setCols] = useState<ColumnMap>(SAMPLE.columns);
-  const [negative, setNegative] = useState(SAMPLE.purchasesNegative);
+  const [cols, setCols] = useState<ColumnMap>(EMPTY.columns);
+  const [negative, setNegative] = useState(EMPTY.purchasesNegative);
   const [monthsOverride, setMonthsOverride] = useState<number | null>(null);
-  const [held, setHeld] = useState<string[]>(SAMPLE_HELD);
-  const [touched, setTouched] = useState(false);
+  const [held, setHeld] = useState<string[]>(SAVED?.held ?? []);
+  const [touched, setTouched] = useState(!!SAVED?.held.length);
   const [asking, setAsking] = useState(false);
-  const [custom, setCustom] = useState<Card[]>([]);
-  const [rotating, setRotating] = useState<Record<string, CategoryId[]>>({});
-  const [overrides, setOverrides] = useState<Record<string, CategoryId>>({});
+  const [editingCards, setEditingCards] = useState(false);
+  const [custom, setCustom] = useState<Card[]>(SAVED?.custom ?? []);
+  const [rotating, setRotating] = useState<Record<string, CategoryId[]>>(SAVED?.rotating ?? {});
+  const [overrides, setOverrides] = useState<Record<string, CategoryId>>(SAVED?.overrides ?? {});
   const [cardLabels, setCardLabels] = useState<Record<string, string>>({});
-  const [mode, setMode] = useState<PointMode>('best');
+  const [mode, setMode] = useState<PointMode>(SAVED?.mode ?? 'best');
+  const [remembered, setRemembered] = useState(!!SAVED);
   const [tab, setTab] = useState<Tab>('plan');
   const [readError, setReadError] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -55,20 +65,42 @@ export function App() {
     [transactions, months, heldCards, mode, overrides, cardLabels],
   );
 
+  // Remember choices once the person has made one. The sample's cards are never saved.
+  useEffect(() => {
+    const used = touched || custom.length > 0 || Object.keys(overrides).length > 0 || Object.keys(rotating).length > 0;
+    if (!used) return;
+    remember({ held: touched ? held : [], custom, rotating, overrides, mode });
+    setRemembered(true);
+  }, [touched, held, custom, rotating, overrides, mode]);
+
+  function forgetMe() {
+    forget();
+    setRemembered(false);
+    setTouched(false);
+    setHeld(source === 'sample' ? SAMPLE_HELD : []);
+    setCustom([]);
+    setRotating({});
+    setOverrides({});
+    setCardLabels({});
+    setMode('best');
+  }
+
   async function load(f: File | undefined) {
     if (!f) return;
     setReadError('');
     try {
       const parsed = readTable(await readFile(f));
+      setSource('file');
       setFile(parsed);
       setFileName(f.name);
       setCols(parsed.columns);
       setNegative(parsed.purchasesNegative);
       setMonthsOverride(null);
-      setOverrides({});
       setCardLabels({});
       if (!touched) setHeld([]);
-      setAsking(true);
+      // Saved cards skip the picker; they can be changed on My cards.
+      setAsking(!touched);
+      setEditingCards(false);
       setTab(missingColumns(parsed.columns).length ? 'columns' : 'plan');
     } catch (e) {
       setReadError(e instanceof Error ? e.message : 'Couldn’t read this file.');
@@ -76,13 +108,14 @@ export function App() {
   }
 
   function loadSample() {
+    setSource('sample');
     setFile(SAMPLE);
     setFileName(null);
     setCols(SAMPLE.columns);
     setNegative(SAMPLE.purchasesNegative);
     setMonthsOverride(null);
-    setOverrides({});
     setCardLabels({});
+    setEditingCards(false);
     setAsking(false);
     setReadError('');
     if (!touched) setHeld(SAMPLE_HELD);
@@ -97,10 +130,12 @@ export function App() {
   const single = plan.singleBest?.card.name ?? '';
   const versus = plan.baselineKind === 'actual' ? 'what you earned with the cards you used' : `putting everything on ${single}`;
   const top = [...plan.categories].sort((a, b) => b.earned - a.earned)[0];
-  const showNumbers = !missing.length && !asking && heldCards.length > 0;
+  const loaded = source !== 'none';
+  const showNumbers = loaded && !missing.length && !asking && heldCards.length > 0;
 
   let headline = 'Add the cards you hold to see where each one fits';
-  if (missing.length) headline = 'Pick the right columns to continue';
+  if (!loaded) headline = 'Find the best card for every purchase';
+  else if (missing.length) headline = 'Pick the right columns to continue';
   else if (asking) headline = 'Which cards do you hold?';
   else if (heldCards.length)
     headline =
@@ -115,7 +150,7 @@ export function App() {
       <header className="band top">
         <div className="wrap grid">
           <div>
-            {!fileName && <span className="badge">Sample data, not yours</span>}
+            {source === 'sample' && <span className="badge">Sample data, not yours</span>}
             <h1>{headline}</h1>
             {showNumbers && (
               <>
@@ -146,14 +181,23 @@ export function App() {
                 </div>
               </>
             )}
-            {asking && !missing.length && <p className="lede">Your file is loaded. Tick your cards below and the app will work out which one to use for each category.</p>}
-            <div className="modebar">
+            {!loaded && heldCards.length > 0 && (
+              <p className="lede">Welcome back. Add a new transaction export to see where to use each of your cards.</p>
+            )}
+            {!loaded && !heldCards.length && (
+              <p className="lede">
+                Add a transaction export from your bank and tick the cards you hold. Card to Use works out which card earns the most for each kind of
+                spending, right here in your browser.
+              </p>
+            )}
+            {loaded && asking && !missing.length && <p className="lede">Your file is loaded. Tick your cards below and the app will work out which one to use for each category.</p>}
+            {loaded && <div className="modebar">
               <label htmlFor="mode">Value points at</label>
               <select id="mode" value={mode} onChange={(e) => setMode(e.target.value as PointMode)}>
                 <option value="best">Best value (transfer partners)</option>
                 <option value="cash">Cash-out value</option>
               </select>
-            </div>
+            </div>}
           </div>
           <div
             className={`drop${dragging ? ' on' : ''}`}
@@ -177,22 +221,35 @@ export function App() {
               </p>
             ) : (
               <p>
-                {fileName
+                {source === 'file'
                   ? `${fileName}: ${transactions.length} purchases over about ${months} month${months === 1 ? '' : 's'}.`
-                  : `Showing ${transactions.length} sample purchases over 3 months. Drop a CSV or Excel export here to use your own.`}
+                  : source === 'sample'
+                    ? `Showing ${transactions.length} sample purchases over 3 months. Drop a CSV or Excel export here to use your own.`
+                    : 'Drop a CSV or Excel export from your bank or card here, or choose a file.'}
               </p>
             )}
             <input ref={input} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" hidden onChange={(e) => { load(e.target.files?.[0]); e.target.value = ''; }} />
             <div className="row-btns">
               <button className="btn" onClick={() => input.current?.click()}>Choose a file</button>
-              <button className="btn ghost" onClick={loadSample}>Use sample data</button>
+              <button className="btn ghost" onClick={loadSample}>{source === 'sample' ? 'Reload sample data' : 'Try sample data'}</button>
             </div>
-            <p className="privacy">Your file is read inside this tab only. Nothing is uploaded or saved, and closing the tab clears it. Estimates only, not financial advice.</p>
+            <p className="privacy">
+              Your file is read inside this tab only. Nothing is uploaded, and your purchases are never saved.
+              {remembered ? (
+                <>
+                  {' '}Your cards, merchant fixes and settings are remembered in this browser.{' '}
+                  <button className="linkish" onClick={forgetMe}>Forget me</button>.
+                </>
+              ) : (
+                ' Once you pick cards, they’re remembered in this browser only, and you can clear them any time.'
+              )}{' '}
+              Estimates only, not financial advice.
+            </p>
           </div>
         </div>
       </header>
 
-      <nav className="tabs" aria-label="Sections">
+      {loaded && <nav className="tabs" aria-label="Sections">
         <div className="wrap" role="tablist">
           {TABS.map(([id, label]) => (
             <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
@@ -200,11 +257,22 @@ export function App() {
             </button>
           ))}
         </div>
-      </nav>
+      </nav>}
 
       <main className="band">
         <div className="wrap">
-          {tab === 'plan' &&
+          {!loaded && (
+            <Start
+              cards={allCards}
+              held={heldCards}
+              editing={editingCards}
+              onEdit={() => setEditingCards(true)}
+              onSample={loadSample}
+              onFile={() => input.current?.click()}
+              onDone={(ids) => { changeHeld(ids); setEditingCards(false); }}
+            />
+          )}
+          {loaded && tab === 'plan' &&
             (asking && !missing.length ? (
               <CardPicker cards={allCards} held={held} onDone={(ids) => { changeHeld(ids); setAsking(false); }} />
             ) : missing.length ? (
@@ -212,7 +280,7 @@ export function App() {
             ) : (
               <PlanView plan={plan} held={heldCards} mode={mode} versus={versus} onRotating={() => setTab('wallet')} />
             ))}
-          {tab === 'wallet' && (
+          {loaded && tab === 'wallet' && (
             <WalletView
               all={allCards}
               held={heldCards}
@@ -224,8 +292,8 @@ export function App() {
               onRotating={(id, cats) => setRotating((r) => ({ ...r, [id]: cats }))}
             />
           )}
-          {tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
-          {tab === 'columns' && (
+          {loaded && tab === 'merchants' && <MerchantsView transactions={transactions} held={heldCards} mode={mode} overrides={overrides} onOverride={(k, c) => setOverrides((o) => ({ ...o, [k]: c }))} />}
+          {loaded && tab === 'columns' && (
             <ColumnsView
               file={file}
               cols={cols}
@@ -254,5 +322,78 @@ export function App() {
         </div>
       </footer>
     </>
+  );
+}
+
+/**
+ * The first screen. A first visit gets the how-it-works steps; a return visit shows the cards remembered in
+ * this browser, so the person only needs to add a file.
+ */
+function Start(props: {
+  cards: Card[];
+  held: Card[];
+  editing: boolean;
+  onEdit: () => void;
+  onDone: (ids: string[]) => void;
+  onSample: () => void;
+  onFile: () => void;
+}) {
+  const { cards, held, editing, onEdit, onDone, onSample, onFile } = props;
+  if (editing)
+    return (
+      <CardPicker
+        cards={cards}
+        held={held.map((c) => c.id)}
+        doneLabel="Save my cards"
+        intro="Tick every card you have. They’re remembered in this browser, so next time you only need to add a file."
+        onDone={onDone}
+      />
+    );
+  if (!held.length)
+    return (
+      <section className="howto">
+        <h2>How it works</h2>
+        <ol className="steps">
+          <li>
+            <b>Tick the cards you hold.</b>
+            <span>About 80 cards from Chase, Amex, Citi, Capital One, U.S. Bank, Wells Fargo, Bank of America, Discover, Barclays, Bilt and airline and hotel brands. You can add one that isn’t listed.</span>
+          </li>
+          <li>
+            <b>Download your transactions.</b>
+            <span>On your bank or card website, export a few months of activity as CSV or Excel. Several cards in one file works, and a card column lets the app compare against what you actually used.</span>
+          </li>
+          <li>
+            <b>Add the file here.</b>
+            <span>See which card to use for each category and merchant, where caps run out, and how much more you’d earn a year.</span>
+          </li>
+        </ol>
+        <p className="note">
+          Everything runs in this browser tab. There’s no server and no account: your file is never uploaded or saved. Your card choices are remembered in
+          this browser only, so next time you can skip straight to adding a file.
+        </p>
+        <div className="row-btns">
+          <button className="btn" onClick={onEdit}>Pick my cards</button>
+          <button className="btn ghost" onClick={onFile}>Add a file first</button>
+          <button className="btn ghost" onClick={onSample}>Try sample data</button>
+        </div>
+      </section>
+    );
+  return (
+    <section className="form">
+      <h3>Your cards</h3>
+      <ul className="heldlist">
+        {held.map((c) => (
+          <li key={c.id}>
+            <Mini card={c} />
+            {fullName(c)}
+          </li>
+        ))}
+      </ul>
+      <p className="note">Add a new transaction file to see which of these to use for each kind of spending.</p>
+      <div className="row-btns">
+        <button className="btn" onClick={onFile}>Choose a file</button>
+        <button className="btn ghost" onClick={onEdit}>Change my cards</button>
+      </div>
+    </section>
   );
 }
