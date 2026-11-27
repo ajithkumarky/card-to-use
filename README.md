@@ -8,7 +8,7 @@ Upload a credit card transaction export, tick the cards you hold, and see which 
 
 ## How it works
 
-- **What do I use?** (`#use`, `src/ui/quick.tsx`): type where you're about to pay, or pick a kind of purchase, and see which of your saved cards earns most there. It uses brand bonuses, category rates and the rotating categories you've set. No file is needed, so it works at the checkout on a phone.
+- **Which card here?** (`#use`, `src/ui/quick.tsx`, the home page once you've saved cards): type where you're about to pay, or pick a kind of purchase, and see which of your saved cards earns most there. It uses brand bonuses, category rates and the rotating categories you've set. No file is needed, so it works at the checkout on a phone.
 
 - `src/core/parse.ts` finds the header row, guesses the date, description, amount (or debit/credit), category and card columns, and drops payments.
 - `src/core/categories.ts` sorts merchants into categories: brand names first (Hampton Inn is a Hilton hotel), then merchant-name rules (Costco is a warehouse club, Uber Eats is dining), then the bank's own category. Merchant fixes made in the app override all of them.

@@ -42,7 +42,7 @@ interface QuickProps {
   picker: ReactNode;
 }
 
-/** "What do I use?": type where you're about to pay and see which of your cards earns most there. No file needed. */
+/** "Which card here?": type where you're about to pay and see which of your cards earns most there. No file needed. */
 export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps) {
   const [merchant, setMerchant] = useState('');
   const [chosen, setChosen] = useState<CategoryId | null>(null);
@@ -58,8 +58,7 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
   if (!held.length)
     return (
       <section>
-        <h2>First, which cards do you have?</h2>
-        <p className="sub">They’re remembered in this browser, so next time this page opens straight to the answer.</p>
+        <p className="sub">Pick your cards once. They’re remembered in this browser, so next time this page opens straight to the answer.</p>
         {picker}
       </section>
     );
