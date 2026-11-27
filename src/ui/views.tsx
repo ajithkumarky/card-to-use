@@ -24,25 +24,45 @@ export function CardArt({ card }: { card: Card }) {
   );
 }
 
+/** Cards grouped by issuer, in catalog order. */
+function byIssuer(cards: Card[]): [string, Card[]][] {
+  const groups = new Map<string, Card[]>();
+  for (const c of cards) groups.set(c.issuer, [...(groups.get(c.issuer) ?? []), c]);
+  return [...groups.entries()];
+}
+
 export function CardPicker({ cards, held, onDone }: { cards: Card[]; held: string[]; onDone: (ids: string[]) => void }) {
   const [picked, setPicked] = useState<string[]>(held);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const shown = q ? cards.filter((c) => [fullName(c).toLowerCase(), ...c.aliases].some((a) => a.includes(q))) : cards;
   return (
     <section className="form">
       <h3>Which of these cards do you hold?</h3>
       <p className="note">Tick every card you have so the recommendations only use your wallet. You can add a card that isn’t listed on the My cards tab.</p>
-      <div className="checks">
-        {cards.map((c) => (
-          <label className="ck" key={c.id}>
-            <input
-              type="checkbox"
-              checked={picked.includes(c.id)}
-              onChange={(e) => setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id)))}
-            />
-            <Mini card={c} />
-            <span>{fullName(c)}</span>
-          </label>
-        ))}
-      </div>
+      <label className="find">
+        Find a card
+        <input type="search" value={query} placeholder="Name or issuer, like Delta or Venture" onChange={(e) => setQuery(e.target.value)} />
+      </label>
+      {byIssuer(shown).map(([issuer, group]) => (
+        <fieldset className="issuer" key={issuer}>
+          <legend>{issuer}</legend>
+          <div className="checks">
+            {group.map((c) => (
+              <label className="ck" key={c.id}>
+                <input
+                  type="checkbox"
+                  checked={picked.includes(c.id)}
+                  onChange={(e) => setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id)))}
+                />
+                <Mini card={c} />
+                <span>{c.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ))}
+      {!shown.length && <p className="note">No listed card matches “{query}”.</p>}
       <button className="btn" disabled={!picked.length} onClick={() => onDone(picked)}>
         Show my recommendations
       </button>
@@ -146,7 +166,13 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
       <div className="addbar">
         <label className="sr" htmlFor="lib">Add a listed card</label>
         <select id="lib" value={chosen} onChange={(e) => setPick(e.target.value)} disabled={!available.length}>
-          {available.length ? available.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>) : <option>All listed cards added</option>}
+          {available.length
+            ? byIssuer(available).map(([issuer, group]) => (
+                <optgroup key={issuer} label={issuer}>
+                  {group.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
+                </optgroup>
+              ))
+            : <option>All listed cards added</option>}
         </select>
         <button className="btn" disabled={!chosen} onClick={() => onHeld([...ids, chosen])}>Add card</button>
         <button className="btn ghost" onClick={() => setShowForm(true)}>Add a card that isn’t listed</button>

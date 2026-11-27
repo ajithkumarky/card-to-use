@@ -106,7 +106,18 @@ function earnedOnOneCard(card: Card, spend: number, cat: CategoryId, programs: P
 export function matchCardLabel(label: string, held: Card[]): Card | undefined {
   const l = label.toLowerCase();
   if (!l) return undefined;
-  return held.find((c) => [c.name.toLowerCase(), ...c.aliases].some((a) => a && l.includes(a)));
+  // The longest matching name wins, so "Delta SkyMiles Gold" picks the Delta card over the Amex Gold Card.
+  let best: Card | undefined;
+  let bestLen = 0;
+  for (const c of held) {
+    for (const a of [c.name.toLowerCase(), ...c.aliases]) {
+      if (a && a.length > bestLen && l.includes(a)) {
+        best = c;
+        bestLen = a.length;
+      }
+    }
+  }
+  return best;
 }
 
 export function buildPlan(input: PlanInput): Plan {

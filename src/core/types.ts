@@ -4,15 +4,20 @@ export const CATEGORY_IDS = [
 ] as const;
 export type CategoryId = (typeof CATEGORY_IDS)[number];
 
-export type ProgramId = 'ur' | 'mr' | 'ty' | 'c1' | 'cash';
+export const PROGRAM_IDS = [
+  'ur', 'mr', 'ty', 'c1', 'bilt', 'wf', 'usb', 'bofa',
+  'delta', 'united', 'aa', 'southwest', 'jetblue', 'aeroplan', 'avios',
+  'marriott', 'hilton', 'hyatt', 'ihg', 'wyndham', 'choice', 'cash',
+] as const;
+export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type PointMode = 'best' | 'cash';
 
 export interface Program {
   id: ProgramId;
   name: string;
-  /** Cents per point when transferred to partners (published estimate). */
+  /** Cents per point at a realistic best redemption, such as transfers to partners or award stays (published estimate). */
   bestCents: number;
-  /** Cents per point when cashed out or used as a statement credit. */
+  /** Cents per point when cashed out or used as a statement credit, or for airline and hotel programs a typical low-effort redemption. */
   cashCents: number;
 }
 
