@@ -1,4 +1,4 @@
-import type { RotatingOffer } from './rotating';
+import type { RotatingOffer, Staleness } from './rotating';
 
 export const CATEGORY_IDS = [
   'dining', 'groceries', 'gas', 'airfare', 'hotels', 'travel', 'transit', 'streaming',
@@ -47,6 +47,8 @@ export interface Rotating {
   categories: CategoryId[];
   /** This quarter's categories as read from the issuer's site, when the crawler has them. */
   offer?: RotatingOffer;
+  /** Set when the crawler has nothing for this quarter and you haven't ticked categories yourself. */
+  stale?: Staleness;
 }
 
 /** One tier of a pick-your-category card: `count` categories chosen from `options` earn `rate`. */

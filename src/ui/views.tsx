@@ -5,6 +5,7 @@ import type { ColumnMap, ParsedFile } from '../core/parse';
 import { centsPerPoint, matchCardLabel, rateFor, rotatingBonus, type Plan } from '../core/recommend';
 import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type PointMode, type ProgramId, type Transaction } from '../core/types';
 import { fullName, rateText, usd } from './format';
+import { StaleNotice } from './rotatingNotice';
 import type { Choices } from '../core/choices';
 
 const label = (c: CategoryId) => CATEGORY_LABELS[c];
@@ -91,9 +92,11 @@ export function PlanView({ plan, held, mode, versus, onRotating }: { plan: Plan;
       <p className="sub">Sorted by yearly spend. Each row shows the card that earns most, where caps run out, and what you gain compared with {versus}.</p>
       {rotators.map((c) => {
         const r = c.rotating!;
+        if (r.stale && !r.categories.length) return <StaleNotice key={c.id} card={c} onSet={onRotating} />;
         const bonus = rotatingBonus(c, plan, programs, mode);
         return (
           <div className="flag" key={c.id}>
+            <StaleNotice card={c} onSet={onRotating} />
             <b>⚠ Rotating {r.rate}% on {c.name}</b>,{' '}
             {r.categories.length ? (
               <>
@@ -267,6 +270,7 @@ export function WalletView({ all, held, plan, mode, onHeld, onCustom, onRotating
               </div>
               {c.rotating && (
                 <div className="flag" style={{ margin: 0 }}>
+                  <StaleNotice card={c} here />
                   <b>⚠ Rotating {c.rotating.rate}%</b> up to {usd(c.rotating.quarterlyCap)} a quarter. Activate each quarter
                   {c.rotating.offer?.activateBy ? ` (this quarter by ${shortDate(c.rotating.offer.activateBy)})` : ''}.{' '}
                   {c.rotating.offer && (

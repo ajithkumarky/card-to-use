@@ -141,3 +141,6 @@ label.find.big input{min-height:52px;font-size:18px}
 .choice{display:grid;gap:8px;background:var(--soft);border-radius:8px;padding:10px 12px;font-size:14px}
 .choice label{display:grid;gap:4px}
 .choice select{width:100%}
+.stale{background:#fdeaea;border-left:4px solid var(--bad);padding:10px 12px;border-radius:0 10px 10px 0;margin:8px 0;font-size:14px}
+.stale b{color:var(--bad)}
+.stale a{color:inherit;text-decoration:underline}
