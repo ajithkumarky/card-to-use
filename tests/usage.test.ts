@@ -1,36 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { DAILY_CAP, parseEvent, pruneEvents, recordEvent, statsPage, type D1, type D1Stmt } from '../worker/usage';
+import { DAILY_WRITES, RETAIN_DAYS, parseBatch, recordEvents, statsPage, type KVStore } from '../worker/usage';
 
-/** A tiny in-memory stand-in for D1 that understands the few statements usage.ts runs. */
-function fakeDb() {
-  const rows: { day: string; ts: number; who: string; event: string; detail: string }[] = [];
-  const db: D1 = {
-    prepare(sql: string) {
-      let args: unknown[] = [];
-      const stmt: D1Stmt = {
-        bind: (...v) => ((args = v), stmt),
-        async run() {
-          if (sql.startsWith('INSERT')) {
-            const [day, ts, who, event, detail] = args as [string, number, string, string, string];
-            rows.push({ day, ts, who, event, detail });
-          } else if (sql.startsWith('DELETE')) {
-            const keep = rows.filter((r) => r.day >= (args[0] as string));
-            rows.splice(0, rows.length, ...keep);
-          }
-          return {};
-        },
-        async first<T>() {
-          return { n: rows.filter((r) => r.day === args[0] && r.who === args[1]).length } as T;
-        },
-        async all<T>() {
-          return { results: [] as T[] };
-        },
-      };
-      return stmt;
+/** An in-memory stand-in for KV that keeps values, metadata and the expiry asked for. */
+function fakeKv() {
+  const data = new Map<string, { value: string; metadata?: unknown; ttl?: number }>();
+  let writes = 0;
+  const kv: KVStore = {
+    async get(key) {
+      return data.get(key)?.value ?? null;
     },
-    batch: async () => [],
+    async put(key, value, o) {
+      writes++;
+      data.set(key, { value, metadata: o?.metadata, ttl: o?.expirationTtl });
+    },
+    async list({ prefix }) {
+      const keys = [...data].filter(([k]) => k.startsWith(prefix)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([name, v]) => ({ name, metadata: v.metadata }));
+      return { keys, list_complete: true };
+    },
   };
-  return { db, rows };
+  return { kv, data, writes: () => writes };
 }
 
 const post = (body: unknown, email = 'a@example.com') =>
@@ -42,47 +30,63 @@ const post = (body: unknown, email = 'a@example.com') =>
 
 describe('usage events', () => {
   it('accepts only listed events and details', () => {
-    expect(parseEvent({ event: 'tab', detail: 'wallet' })).toEqual({ event: 'tab', detail: 'wallet' });
-    expect(parseEvent({ event: 'upload' })).toEqual({ event: 'upload', detail: '' });
-    expect(parseEvent({ event: 'tab', detail: 'Costco' })).toBeNull();
-    expect(parseEvent({ event: 'lookup', detail: 'Starbucks' })).toBeNull();
-    expect(parseEvent({ event: 'merchant', detail: '' })).toBeNull();
-    expect(parseEvent({ event: 'toString' })).toBeNull();
-    expect(parseEvent('upload')).toBeNull();
+    expect(parseBatch({ counts: { 'tab:wallet': 2, 'upload:': 1, upload: 1 } })).toEqual({ 'tab:wallet': 2, 'upload:': 1 });
+    expect(parseBatch({ counts: { 'tab:Costco': 1 } })).toBeNull();
+    expect(parseBatch({ counts: { 'lookup:Starbucks': 1 } })).toBeNull();
+    expect(parseBatch({ counts: { 'merchant:': 1 } })).toBeNull();
+    expect(parseBatch({ counts: { 'toString:': 1 } })).toBeNull();
+    expect(parseBatch({ counts: { 'upload:': 1.5 } })).toBeNull();
+    expect(parseBatch({ counts: { 'upload:': 0 } })).toBeNull();
+    expect(parseBatch({ counts: {} })).toBeNull();
+    expect(parseBatch('upload')).toBeNull();
   });
 
-  it('stores the Access email, the day and the event, and nothing else', async () => {
-    const { db, rows } = fakeDb();
+  it('adds batches into one key per person per day that expires after the retention window', async () => {
+    const { kv, data, writes } = fakeKv();
     const now = new Date('2026-11-27T12:00:00Z');
-    expect((await recordEvent(post({ event: 'tab', detail: 'plan', merchant: 'Costco' }, 'A@Example.com'), db, now)).status).toBe(204);
-    expect(rows).toEqual([{ day: '2026-11-27', ts: now.getTime(), who: 'a@example.com', event: 'tab', detail: 'plan' }]);
+    expect((await recordEvents(post({ counts: { 'tab:plan': 2 }, merchant: 'Costco' }, 'A@Example.com'), kv, now)).status).toBe(204);
+    await recordEvents(post({ counts: { 'tab:plan': 1, 'lookup:': 3 } }, 'a@example.com'), kv, now);
+    const stored = data.get('usage:2026-11-27:a@example.com')!;
+    expect(JSON.parse(stored.value)).toEqual({ c: { 'tab:plan': 3, 'lookup:': 3 }, last: now.getTime(), w: 2 });
+    expect(stored.metadata).toEqual(JSON.parse(stored.value));
+    expect(stored.ttl).toBe(RETAIN_DAYS * 86400);
+    expect(stored.value).not.toContain('Costco');
+    expect(writes()).toBe(2);
   });
 
-  it('drops unsigned, unknown, oversized and over-cap events', async () => {
-    const { db, rows } = fakeDb();
-    await recordEvent(post({ event: 'upload' }, ''), db);
-    await recordEvent(post({ event: 'nope' }), db);
-    await recordEvent(post('not json'), db);
-    await recordEvent(post({ event: 'upload', pad: 'x'.repeat(300) }), db);
-    expect(rows).toHaveLength(0);
-    for (let i = 0; i < DAILY_CAP + 5; i++) await recordEvent(post({ event: 'lookup' }), db);
-    expect(rows).toHaveLength(DAILY_CAP);
+  it('never touches the rotating feed key', async () => {
+    const { kv, data } = fakeKv();
+    await kv.put('feed', '{"x":1}');
+    await recordEvents(post({ counts: { 'upload:': 1 } }), kv);
+    expect(data.get('feed')!.value).toBe('{"x":1}');
   });
 
-  it('prunes rows older than the retention window', async () => {
-    const { db, rows } = fakeDb();
-    rows.push({ day: '2026-01-01', ts: 0, who: 'a', event: 'upload', detail: '' }, { day: '2026-11-01', ts: 0, who: 'a', event: 'upload', detail: '' });
-    await pruneEvents(db, new Date('2026-11-27T00:00:00Z'));
-    expect(rows.map((r) => r.day)).toEqual(['2026-11-01']);
+  it('drops unsigned, unknown, oversized and over-cap batches', async () => {
+    const { kv, data, writes } = fakeKv();
+    await recordEvents(post({ counts: { 'upload:': 1 } }, ''), kv);
+    await recordEvents(post({ counts: { 'nope:': 1 } }), kv);
+    await recordEvents(post('not json'), kv);
+    await recordEvents(post({ counts: { 'upload:': 1 }, pad: 'x'.repeat(1100) }), kv);
+    expect(data.size).toBe(0);
+    for (let i = 0; i < DAILY_WRITES + 5; i++) await recordEvents(post({ counts: { 'lookup:': 1 } }), kv);
+    expect(writes()).toBe(DAILY_WRITES);
   });
 
-  it('shows the stats page only to the owner', async () => {
-    const { db } = fakeDb();
+  it('shows the stats page only to the owner, with the stored counts', async () => {
+    const { kv } = fakeKv();
+    const now = new Date('2026-11-27T12:00:00Z');
+    await recordEvents(post({ counts: { 'lookup:': 4 } }, 'mom@example.com'), kv, now);
+    await recordEvents(post({ counts: { 'upload:': 1 } }, 'mom@example.com'), kv, new Date('2026-09-01T12:00:00Z'));
     const get = (email: string, jwt = true) =>
       new Request('https://x/api/stats', { headers: { 'Cf-Access-Authenticated-User-Email': email, ...(jwt ? { 'Cf-Access-Jwt-Assertion': 'x' } : {}) } });
-    expect((await statsPage(get('owner@example.com'), db, 'owner@example.com, other@example.com')).status).toBe(200);
-    expect((await statsPage(get('someone@example.com'), db, 'owner@example.com')).status).toBe(404);
-    expect((await statsPage(get('owner@example.com', false), db, 'owner@example.com')).status).toBe(404);
-    expect((await statsPage(get('owner@example.com'), db, undefined)).status).toBe(404);
+    const ok = await statsPage(get('owner@example.com'), kv, 'owner@example.com, other@example.com', now);
+    expect(ok.status).toBe(200);
+    const html = await ok.text();
+    expect(html).toContain('mom@example.com');
+    expect(html).toContain('Ran a “Which card here?” lookup');
+    expect(html).not.toContain('Uploaded a file'); // older than 30 days
+    expect((await statsPage(get('someone@example.com'), kv, 'owner@example.com')).status).toBe(404);
+    expect((await statsPage(get('owner@example.com', false), kv, 'owner@example.com')).status).toBe(404);
+    expect((await statsPage(get('owner@example.com'), kv, undefined)).status).toBe(404);
   });
 });

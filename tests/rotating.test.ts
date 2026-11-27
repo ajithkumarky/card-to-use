@@ -150,7 +150,7 @@ describe('worker', () => {
 
   function kv(initial?: string) {
     const store = new Map<string, string>(initial ? [['feed', initial]] : []);
-    return { store, get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => void store.set(k, v) };
+    return { store, get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => void store.set(k, v), list: async () => ({ keys: [], list_complete: true }) };
   }
 
   it('crawls both issuers and stores the result', async () => {
