@@ -1,8 +1,9 @@
 {
-  // Static app plus one small script (worker/index.ts). The script only serves /api/rotating and runs
-  // a daily cron that reads the issuers' public rotating-category pages into KV. It never sees
-  // anything about the people using the app. Everything else is served from ./dist without it.
-  // All of this fits the Workers free plan: cron triggers and KV are free at this size.
+  // Static app plus one small script (worker/index.ts). The script serves /api/rotating, records
+  // feature-usage events for the owner's /api/stats page, and runs a daily cron that reads the issuers'
+  // public rotating-category pages into KV. It never sees anyone's transactions, merchants or cards.
+  // Everything else is served from ./dist without it.
+  // All of this fits the Workers free plan: cron triggers, KV and D1 are free at this size.
   "name": "card-to-use",
   "main": "worker/index.ts",
   "compatibility_date": "2026-11-01",
@@ -21,6 +22,9 @@
   },
   // Holds the crawled categories. With no "id", the first `wrangler deploy` creates the namespace.
   "kv_namespaces": [{ "binding": "ROTATING" }],
+  // Feature-usage events for /api/stats (worker/usage.ts). With no "database_id", the first `wrangler deploy`
+  // creates the database. D1's free plan allows 100,000 writes and 5 million reads a day.
+  "d1_databases": [{ "binding": "USAGE", "database_name": "card-to-use-usage" }],
   // Daily at 13:00 UTC. Chase announces mid-month before each quarter and Discover a month ahead.
   "triggers": { "crons": ["0 13 * * *"] },
   "observability": { "enabled": true }

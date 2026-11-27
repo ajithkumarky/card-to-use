@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BRANDS, CATEGORY_LABELS, brandOf, categorize } from '../core/categories';
 import { programs } from '../core/catalog';
 import { rankForPurchase, type PurchasePick } from '../core/recommend';
@@ -7,6 +7,7 @@ import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type Network, t
 import { rateText, usd } from './format';
 import { CardArt, Mini } from './views';
 import { StaleNotice } from './rotatingNotice';
+import { track } from './usage';
 
 /** Places to pay, offered as suggestions: the merchant directory plus the brands whose cards pay a bonus. */
 const SUGGESTIONS = [...new Set([...MERCHANTS.map((m) => m.name), ...Object.values(BRANDS).map((b) => b.name.split(',')[0])])].sort((a, b) =>
@@ -56,6 +57,14 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
   const ranked = cat && held.length ? rankForPurchase(held, cat, brand, programs, mode, known?.accepts) : [];
   const [best, ...rest] = ranked;
   const unsure = !!typed && !chosen && guessed === 'other' && !known;
+  // Counts a lookup once an answer has stayed on screen for a moment, so typing doesn't count every letter.
+  // Only the fact that a lookup ran is sent, never what was typed or which card won.
+  const answerKey = best ? `${typed}|${cat}` : '';
+  useEffect(() => {
+    if (!answerKey) return;
+    const t = window.setTimeout(() => track({ event: 'lookup' }), 1500);
+    return () => window.clearTimeout(t);
+  }, [answerKey]);
 
   if (!held.length)
     return (

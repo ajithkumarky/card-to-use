@@ -13,6 +13,7 @@ import { QuickPick } from './quick';
 import { SuggestionsView } from './suggest';
 import { ColumnGuide } from './columnGuide';
 import { readFile } from './readFile';
+import { track } from './usage';
 import { SAMPLE_HELD, sampleTable } from './sample';
 import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, ThisQuarter, WalletView } from './views';
 import { fullName } from './format';
@@ -68,7 +69,13 @@ export function App() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  const [tab, setTab] = useState<Tab>('plan');
+  const [tab, setTabState] = useState<Tab>('plan');
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    track({ event: 'tab', detail: t });
+  };
+  // Counts which page was opened, by name only (see usage.ts).
+  useEffect(() => { track({ event: 'open', detail: page }); }, [page]);
   const [readError, setReadError] = useState('');
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -133,6 +140,7 @@ export function App() {
 
   function forgetMe() {
     forget();
+    track({ event: 'forget' });
     setRemembered(false);
     setTouched(false);
     setHeld(source === 'sample' ? SAMPLE_HELD : []);
@@ -161,13 +169,15 @@ export function App() {
       setAsking(!touched);
       setEditingCards(false);
       setGuiding(missingColumns(parsed.columns).length > 0);
-      setTab('plan');
+      setTabState('plan');
+      track({ event: 'upload' });
     } catch (e) {
       setReadError(e instanceof Error ? e.message : 'Couldn’t read this file.');
     }
   }
 
   function loadSample() {
+    track({ event: 'sample' });
     setSource('sample');
     setFile(SAMPLE);
     setFileName(null);
@@ -182,6 +192,7 @@ export function App() {
   }
 
   const changeHeld = (ids: string[]) => {
+    track({ event: 'cards_saved' });
     setHeld(ids);
     setTouched(true);
   };
@@ -485,7 +496,7 @@ export function App() {
               held={heldCards}
               cardLabels={cardLabels}
               onCardLabel={(label, id) => setCardLabels((m) => ({ ...m, [label]: id }))}
-              onGuide={() => { setCols({ ...cols, description: -1, amount: -1, debit: -1, credit: -1, date: -1, card: -1 }); setGuiding(true); setTab('plan'); }}
+              onGuide={() => { setCols({ ...cols, description: -1, amount: -1, debit: -1, credit: -1, date: -1, card: -1 }); setGuiding(true); setTabState('plan'); }}
             />
           )}
           <StackNote asOf={catalog.asOf} />
