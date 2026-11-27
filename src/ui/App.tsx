@@ -208,15 +208,9 @@ export function App() {
       <div className="wrap">
         <a className="brand" href={held.length ? '#use' : '#plan'}>Card to Use</a>
         <div className="navtabs">
-          <a href="#use" aria-current={page === 'use' ? 'page' : undefined}>
-            <span aria-hidden="true">🔎</span> Which card here?
-          </a>
-          <a href="#cards" aria-current={page === 'cards' ? 'page' : undefined}>
-            <span aria-hidden="true">💳</span> My cards
-          </a>
-          <a href="#plan" aria-current={page === 'plan' ? 'page' : undefined}>
-            <span aria-hidden="true">📊</span> Analyze my spending
-          </a>
+          <a href="#use" aria-current={page === 'use' ? 'page' : undefined}>Which card here?</a>
+          <a href="#cards" aria-current={page === 'cards' ? 'page' : undefined}>My cards</a>
+          <a href="#plan" aria-current={page === 'plan' ? 'page' : undefined}>Analyze my spending</a>
         </div>
       </div>
     </nav>
