@@ -2,7 +2,7 @@
 
 Upload a credit card transaction export, tick the cards you hold, and see which card to use for each spending category, with estimated yearly rewards.
 
-**Nothing is stored and nothing leaves the browser.** Files are read in the page, there is no server code, no analytics, no cookies and no local storage. Fonts are self-hosted, and the Content-Security-Policy in `public/_headers` blocks requests to any other site.
+**Nothing leaves the browser, and your purchases are never stored.** Files are read in the page, and there is no server code, no analytics and no cookies. Once you pick cards, the app remembers your cards, cards you added, rotating categories, merchant fixes and the point-value setting in this browser's `localStorage` (`src/ui/memory.ts`), so a return visit skips the how-it-works page. Transactions, file contents and card-number labels are never saved. **Forget me** under the file box clears everything. Fonts are self-hosted, and the Content-Security-Policy in `public/_headers` blocks requests to any other site.
 
 > Not financial advice. Rates, caps, fees, APRs and point values are approximate and can change; check the issuer's terms.
 

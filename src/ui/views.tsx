@@ -31,7 +31,15 @@ function byIssuer(cards: Card[]): [string, Card[]][] {
   return [...groups.entries()];
 }
 
-export function CardPicker({ cards, held, onDone }: { cards: Card[]; held: string[]; onDone: (ids: string[]) => void }) {
+interface PickerProps {
+  cards: Card[];
+  held: string[];
+  onDone: (ids: string[]) => void;
+  doneLabel?: string;
+  intro?: string;
+}
+
+export function CardPicker({ cards, held, onDone, doneLabel = 'Show my recommendations', intro }: PickerProps) {
   const [picked, setPicked] = useState<string[]>(held);
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
@@ -39,7 +47,7 @@ export function CardPicker({ cards, held, onDone }: { cards: Card[]; held: strin
   return (
     <section className="form">
       <h3>Which of these cards do you hold?</h3>
-      <p className="note">Tick every card you have so the recommendations only use your wallet. You can add a card that isn’t listed on the My cards tab.</p>
+      <p className="note">{intro ?? 'Tick every card you have so the recommendations only use your wallet. You can add a card that isn’t listed on the My cards tab.'}</p>
       <label className="find">
         Find a card
         <input type="search" value={query} placeholder="Name or issuer, like Delta or Venture" onChange={(e) => setQuery(e.target.value)} />
@@ -64,7 +72,7 @@ export function CardPicker({ cards, held, onDone }: { cards: Card[]; held: strin
       ))}
       {!shown.length && <p className="note">No listed card matches “{query}”.</p>}
       <button className="btn" disabled={!picked.length} onClick={() => onDone(picked)}>
-        Show my recommendations
+        {doneLabel}
       </button>
     </section>
   );
