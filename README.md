@@ -55,8 +55,8 @@ The owner can see who uses the app and which features, at **`/api/stats`** (`wor
 
 - **Recorded:** the day and time, the email Cloudflare Access signed the person in with, and one event name from a fixed list: a page opened (which one), a spending-analysis tab viewed (which one), a file uploaded, sample data loaded, a "Which card here?" lookup run, cards saved, or Forget me used.
 - **Never recorded:** merchants, amounts, transactions, file names or contents, which cards anyone holds or picked, what was typed into a lookup, IP addresses or cookies. The Worker rejects any event or detail not on the list.
-- Browsers with Do Not Track or Global Privacy Control on send nothing. Rows are deleted after 180 days by the daily cron.
-- Events are stored in a D1 database (`USAGE`), created by the first deploy. The free plan allows 100,000 writes a day, and each person is capped at 500 events a day.
+- Browsers with Do Not Track or Global Privacy Control on send nothing.
+- Counts are stored in the existing `ROTATING` KV namespace, one key per person per day (`usage:<day>:<email>`), which expires after 180 days. The page batches its events and sends them at most every 5 minutes and when it's hidden, so a visit costs one or two writes. Each person is capped at 20 writes a day, which keeps everyone well under KV's 1,000 free writes a day.
 
 **Setup (once):** `npx wrangler secret put STATS_OWNER` and enter your email (comma-separate several). Until it's set, `/api/stats` answers 404 for everyone, and it always does for anyone not on the list.
 
