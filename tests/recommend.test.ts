@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { libraryCards, programs } from '../src/core/catalog';
-import { buildPlan, rateFor, rotatingBonus } from '../src/core/recommend';
+import { buildPlan, rankForPurchase, rateFor, rotatingBonus } from '../src/core/recommend';
 import type { Transaction } from '../src/core/types';
 import { loadFixture } from './helpers';
 
@@ -165,5 +165,26 @@ describe('brand bonuses', () => {
     });
     expect(plan.categories[0].category).toBe('dining');
     expect(plan.categories[0].brand).toBeUndefined();
+  });
+});
+
+describe('what do I use', () => {
+  it('ranks held cards for one purchase, using brand bonuses', () => {
+    const held = [card('amex-hilton-surpass'), card('chase-sapphire-preferred'), card('citi-double-cash')];
+    const hilton = rankForPurchase(held, 'hotels', 'hilton', programs, 'best');
+    expect(hilton[0].card.id).toBe('amex-hilton-surpass');
+    expect(hilton[0].source).toBe('brand');
+    const marriott = rankForPurchase(held, 'hotels', 'marriott', programs, 'best');
+    expect(marriott[0].card.id).toBe('chase-sapphire-preferred');
+    expect(marriott[0].source).toBe('category');
+    expect(marriott[0].via).toBe('travel');
+  });
+
+  it('counts a rotating category once it is set', () => {
+    const flex = card('chase-freedom-flex');
+    const set = { ...flex, rotating: { ...flex.rotating!, categories: ['gas' as const] } };
+    expect(rankForPurchase([flex, card('citi-double-cash')], 'gas', undefined, programs, 'cash')[0].card.id).toBe('citi-double-cash');
+    const top = rankForPurchase([set, card('citi-double-cash')], 'gas', undefined, programs, 'cash')[0];
+    expect([top.card.id, top.source, top.rate, top.cap]).toEqual(['chase-freedom-flex', 'rotating', 5, 1500]);
   });
 });

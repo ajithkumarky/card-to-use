@@ -240,3 +240,37 @@ export function rotatingBonus(card: Card, plan: Plan, programs: Programs, mode: 
   }
   return extra;
 }
+
+export interface PurchasePick {
+  card: Card;
+  rate: number;
+  /** Cents earned per dollar at the chosen point value. */
+  cents: number;
+  /** Why this rate applies: a brand bonus, this quarter's rotating category, a category rate, or the base rate. */
+  source: 'brand' | 'rotating' | 'category' | 'base';
+  /** The category whose rate applied (may be a parent, like travel for flights). */
+  via?: CategoryId;
+  /** Yearly cap on this rate in dollars, or the quarterly cap for a rotating category. 0 when uncapped. */
+  cap: number;
+}
+
+/** Ranks held cards for a single purchase at a merchant in a category, best first. Rotating categories count only once set. */
+export function rankForPurchase(held: Card[], cat: CategoryId, brand: BrandId | undefined, programs: Programs, mode: PointMode): PurchasePick[] {
+  const picks = held.map((card): PurchasePick => {
+    let pick: Omit<PurchasePick, 'card' | 'cents'> = { rate: card.base, source: 'base', cap: 0 };
+    for (let c: CategoryId | undefined = cat; c; c = PARENT[c]) {
+      const r = card.rates[c];
+      if (r) {
+        pick = { rate: r.rate, source: 'category', via: c, cap: r.cap ?? 0 };
+        break;
+      }
+    }
+    const b = brand && card.brands?.[brand];
+    if (b && b.rate > pick.rate) pick = { rate: b.rate, source: 'brand', cap: b.cap ?? 0 };
+    const rot = card.rotating;
+    if (rot && rot.rate > pick.rate && (rot.categories.includes(cat) || (PARENT[cat] && rot.categories.includes(PARENT[cat]!))))
+      pick = { rate: rot.rate, source: 'rotating', cap: rot.quarterlyCap };
+    return { card, ...pick, cents: pick.rate * centsPerPoint(card, programs, mode) };
+  });
+  return picks.sort((a, b) => b.cents - a.cents || Number(a.card.program !== 'cash') - Number(b.card.program !== 'cash'));
+}

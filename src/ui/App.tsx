@@ -6,6 +6,7 @@ import type { Card, CategoryId, PointMode } from '../core/types';
 import { groupLabel } from '../core/categories';
 import { usd } from './format';
 import { forget, recall, remember } from './memory';
+import { QuickPick } from './quick';
 import { readFile } from './readFile';
 import { SAMPLE_HELD, sampleTable } from './sample';
 import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, WalletView } from './views';
@@ -44,6 +45,13 @@ export function App() {
   const [cardLabels, setCardLabels] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<PointMode>(SAVED?.mode ?? 'best');
   const [remembered, setRemembered] = useState(!!SAVED);
+  // Two pages share the same saved cards: the plan from a file, and "What do I use?" at #use for a single purchase.
+  const [page, setPage] = useState<'plan' | 'use'>(() => (window.location.hash === '#use' ? 'use' : 'plan'));
+  useEffect(() => {
+    const onHash = () => setPage(window.location.hash === '#use' ? 'use' : 'plan');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [tab, setTab] = useState<Tab>('plan');
   const [readError, setReadError] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -145,8 +153,58 @@ export function App() {
           ? 'You already use the right card for each category'
           : `${single} alone earns as much as any mix of your cards`;
 
+  const topnav = (
+    <nav className="topnav" aria-label="Pages">
+      <div className="wrap">
+        <span className="brand">Card to Use</span>
+        <a href="#" aria-current={page === 'plan' ? 'page' : undefined}>Plan from spending</a>
+        <a href="#use" aria-current={page === 'use' ? 'page' : undefined}>What do I use?</a>
+      </div>
+    </nav>
+  );
+
+  const footer = (
+    <footer className="band foot">
+      <div className="wrap">
+        <p>
+          <b>Not financial advice.</b> Card to Use gives estimates to help you compare, not recommendations to open, close or use any account. Rates,
+          fees, caps, APRs and point values are approximate and can change at any time. Check the issuer’s current terms before you decide.
+        </p>
+        <p>Card names belong to their issuers. Card to Use is not affiliated with or endorsed by any of them.</p>
+      </div>
+    </footer>
+  );
+
+  if (page === 'use')
+    return (
+      <>
+        {topnav}
+        <main className="band">
+          <div className="wrap">
+            <h1>What do I use?</h1>
+            <QuickPick
+              held={heldCards}
+              mode={mode}
+              onMode={setMode}
+              overrides={overrides}
+              picker={<CardPicker cards={allCards} held={held} doneLabel="Save my cards" onDone={changeHeld} />}
+            />
+            {heldCards.length > 0 && (
+              <p className="note">
+                Using your {heldCards.length} saved card{heldCards.length === 1 ? '' : 's'}. Change them on <a href="#">Plan from spending</a>.{' '}
+                {remembered && <button className="linkish" onClick={forgetMe}>Forget me</button>}
+              </p>
+            )}
+            <StackNote asOf={catalog.asOf} />
+          </div>
+        </main>
+        {footer}
+      </>
+    );
+
   return (
     <>
+      {topnav}
       <header className="band top">
         <div className="wrap grid">
           <div>
@@ -312,15 +370,7 @@ export function App() {
         </div>
       </main>
 
-      <footer className="band foot">
-        <div className="wrap">
-          <p>
-            <b>Not financial advice.</b> Card to Use gives estimates to help you compare, not recommendations to open, close or use any account. Rates,
-            fees, caps, APRs and point values are approximate and can change at any time. Check the issuer’s current terms before you decide.
-          </p>
-          <p>Card names belong to their issuers. Card to Use is not affiliated with or endorsed by any of them.</p>
-        </div>
-      </footer>
+      {footer}
     </>
   );
 }
@@ -393,6 +443,7 @@ function Start(props: {
       <div className="row-btns">
         <button className="btn" onClick={onFile}>Choose a file</button>
         <button className="btn ghost" onClick={onEdit}>Change my cards</button>
+        <a className="btn ghost" href="#use">What do I use?</a>
       </div>
     </section>
   );
