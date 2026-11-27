@@ -10,6 +10,7 @@ import { applyChoices, type Choices } from '../core/choices';
 import { usd } from './format';
 import { forget, recall, remember } from './memory';
 import { QuickPick } from './quick';
+import { ColumnGuide } from './columnGuide';
 import { readFile } from './readFile';
 import { SAMPLE_HELD, sampleTable } from './sample';
 import { CardPicker, ColumnsView, Mini, MerchantsView, PlanView, StackNote, ThisQuarter, WalletView } from './views';
@@ -58,6 +59,8 @@ export function App() {
   const pageFor = (hash: string): Page => (hash === '#use' ? 'use' : hash === '#cards' ? 'cards' : hash === '#plan' ? 'plan' : SAVED?.held.length ? 'use' : 'plan');
   const [page, setPage] = useState<Page>(() => pageFor(window.location.hash));
   const [changingCards, setChangingCards] = useState(false);
+  // Step-by-step column questions, shown when the header row didn't say which column is which.
+  const [guiding, setGuiding] = useState(false);
   useEffect(() => {
     const onHash = () => setPage(pageFor(window.location.hash));
     window.addEventListener('hashchange', onHash);
@@ -154,7 +157,8 @@ export function App() {
       // Saved cards skip the picker; they can be changed on My cards.
       setAsking(!touched);
       setEditingCards(false);
-      setTab(missingColumns(parsed.columns).length ? 'columns' : 'plan');
+      setGuiding(missingColumns(parsed.columns).length > 0);
+      setTab('plan');
     } catch (e) {
       setReadError(e instanceof Error ? e.message : 'Couldn’t read this file.');
     }
@@ -189,11 +193,11 @@ export function App() {
   const undated = transactions.length > 0 && monthsOverride === null && transactions.filter((t) => t.date).length < transactions.length / 2;
   const looksHigh = plan.yearlySpend > 500000 || (plan.yearlySpend > 0 && plan.total / plan.yearlySpend > 0.08);
   const loaded = source !== 'none';
-  const showNumbers = loaded && !missing.length && !asking && heldCards.length > 0;
+  const showNumbers = loaded && !guiding && !missing.length && !asking && heldCards.length > 0;
 
   let headline = 'Add the cards you hold to see where each one fits';
   if (!loaded) headline = 'Find the best card for every purchase';
-  else if (missing.length) headline = 'Pick the right columns to continue';
+  else if (guiding || missing.length) headline = 'A few questions about your file';
   else if (asking) headline = 'Which cards do you hold?';
   else if (heldCards.length)
     headline =
@@ -386,9 +390,10 @@ export function App() {
             <h3>Your transactions</h3>
             {readError ? (
               <p className="err" role="alert">{readError}</p>
-            ) : missing.length ? (
+            ) : guiding || missing.length ? (
               <p className="err" role="alert">
-                Couldn’t find a {missing.join(' or ')} column in this file. Pick it on the File columns tab.
+                {fileName}: the header row didn’t say which column is the {missing.length ? missing.join(' or ') : 'merchant or amount'}. Answer a few quick
+                questions below.
               </p>
             ) : (
               <p>
@@ -444,10 +449,15 @@ export function App() {
             />
           )}
           {loaded && tab === 'plan' &&
-            (asking && !missing.length ? (
+            (guiding ? (
+              <ColumnGuide file={file} cols={cols} onCols={setCols} onNegative={setNegative} onDone={() => setGuiding(false)} />
+            ) : asking && !missing.length ? (
               <CardPicker cards={allCards} held={held} onDone={(ids) => { changeHeld(ids); setAsking(false); }} />
             ) : missing.length ? (
-              <p>Pick the description and amount columns on the File columns tab to see recommendations.</p>
+              <div>
+                <p>Recommendations need the merchant and amount columns.</p>
+                <button className="btn" onClick={() => setGuiding(true)}>Pick them step by step</button>
+              </div>
             ) : (
               <PlanView plan={plan} held={heldCards} mode={mode} versus={versus} onRotating={() => setTab('wallet')} />
             ))}
@@ -466,6 +476,7 @@ export function App() {
               held={heldCards}
               cardLabels={cardLabels}
               onCardLabel={(label, id) => setCardLabels((m) => ({ ...m, [label]: id }))}
+              onGuide={() => { setCols({ ...cols, description: -1, amount: -1, debit: -1, credit: -1, date: -1, card: -1 }); setGuiding(true); setTab('plan'); }}
             />
           )}
           <StackNote asOf={catalog.asOf} />

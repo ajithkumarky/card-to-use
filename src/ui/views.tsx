@@ -7,6 +7,7 @@ import { CATEGORY_IDS, type BrandId, type Card, type CategoryId, type PointMode,
 import { fullName, rateText, usd } from './format';
 import { StaleNotice } from './rotatingNotice';
 import type { Choices } from '../core/choices';
+import { COLUMN_HELP, sampleValues } from './columnGuide';
 
 const label = (c: CategoryId) => CATEGORY_LABELS[c];
 /** "2026-12-14" → "Dec 14". */
@@ -588,6 +589,8 @@ interface ColumnsProps {
   held: Card[];
   cardLabels: Record<string, string>;
   onCardLabel: (label: string, id: string) => void;
+  /** Restarts the step-by-step mapping. */
+  onGuide?: () => void;
 }
 
 const FIELDS: [keyof ColumnMap, string][] = [
@@ -600,23 +603,45 @@ const FIELDS: [keyof ColumnMap, string][] = [
   ['card', 'Card used'],
 ];
 
-export function ColumnsView({ file, cols, onCols, negative, onNegative, months, onMonths, transactions, held, cardLabels, onCardLabel }: ColumnsProps) {
+export function ColumnsView({ file, cols, onCols, negative, onNegative, months, onMonths, transactions, held, cardLabels, onCardLabel, onGuide }: ColumnsProps) {
   const labels = [...new Set(transactions.map((t) => t.cardLabel).filter(Boolean))];
   const separate = cols.debit >= 0 || cols.credit >= 0;
   return (
     <section>
       <h2>Columns found in your file</h2>
-      <p className="sub">Matched from the header row. Change any that look wrong.</p>
+      <p className="sub">
+        The app read your file’s header row and matched these columns. Each line says what the column is used for and shows a few values from it. Change
+        any that look wrong.
+        {onGuide && (
+          <>
+            {' '}
+            <button className="linkish" onClick={onGuide}>Walk me through it instead</button>
+          </>
+        )}
+      </p>
+      <ul className="colsum">
+        {FIELDS.filter(([k]) => !(k === 'amount' && separate && cols.amount < 0)).map(([k]) => {
+          const help = COLUMN_HELP[k];
+          const found = cols[k] >= 0;
+          const needed = help.required && !found && !(k === 'amount' && cols.debit >= 0);
+          const eg = sampleValues(file, cols[k]);
+          return (
+            <li key={k}>
+              <div className="what">
+                <span className={`st ${found ? 'ok' : needed ? 'miss' : ''}`}>{found ? '✓ Found' : needed ? 'Needed' : 'Not found, optional'}</span>{' '}
+                <b>{help.label}</b>
+                <span className="eg">{help.why}</span>
+                {eg.length > 0 && <span className="eg">From “{file.headers[cols[k]] || `Column ${cols[k] + 1}`}”: {eg.join(' · ')}</span>}
+              </div>
+              <select id={`col-${k}`} aria-label={help.label} value={cols[k]} onChange={(e) => onCols({ ...cols, [k]: +e.target.value })}>
+                <option value={-1}>None</option>
+                {file.headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
+              </select>
+            </li>
+          );
+        })}
+      </ul>
       <div className="map">
-        {FIELDS.map(([k, l]) => (
-          <label key={k}>
-            {l}
-            <select id={`col-${k}`} value={cols[k]} onChange={(e) => onCols({ ...cols, [k]: +e.target.value })}>
-              <option value={-1}>None</option>
-              {file.headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
-            </select>
-          </label>
-        ))}
         {!separate && (
           <label>
             Purchases show as
@@ -624,6 +649,7 @@ export function ColumnsView({ file, cols, onCols, negative, onNegative, months, 
               <option value="0">Positive amounts</option>
               <option value="1">Negative amounts</option>
             </select>
+            <small>{negative ? 'Positive numbers are treated as refunds or payments.' : 'Negative numbers are treated as refunds or payments.'}</small>
           </label>
         )}
         <label>
