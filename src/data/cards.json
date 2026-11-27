@@ -156,7 +156,7 @@
       "color": "#14181f", "aliases": ["strata elite"], "notes": "6x dining on Friday and Saturday nights, 6x–12x through Citi Travel, credits and lounge access aren't counted." },
     { "id": "costco-anywhere-visa", "name": "Costco Anywhere Visa", "issuer": "Citi", "annualFee": 0, "apr": "about 20% variable", "program": "cash", "base": 1,
       "rates": { "gas": { "rate": 4, "cap": 7000 }, "dining": { "rate": 3 }, "travel": { "rate": 3 }, "wholesale": { "rate": 2 } },
-      "color": "#4a5560", "aliases": ["costco"], "notes": "Needs a Costco membership. 5% on gas at Costco. Rewards are paid once a year." },
+      "brands": { "costcogas": { "rate": 5, "cap": 7000 } }, "color": "#4a5560", "aliases": ["costco"], "notes": "Needs a Costco membership. 5% on gas at Costco and 4% elsewhere share one $7,000 yearly cap; the app applies it to each. Rewards are paid once a year." },
     { "id": "citi-aadvantage-mileup", "name": "AAdvantage MileUp", "issuer": "Citi", "annualFee": 0, "apr": "about 20–28% variable", "program": "aa", "base": 1,
       "rates": { "groceries": { "rate": 2 } },
       "brands": { "american": { "rate": 2 } }, "color": "#6a8caf", "aliases": ["mileup"] },

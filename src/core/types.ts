@@ -13,7 +13,7 @@ export const PROGRAM_IDS = [
 export const BRAND_IDS = [
   'delta', 'united', 'american', 'southwest', 'jetblue', 'aircanada', 'avios',
   'marriott', 'hilton', 'hyatt', 'ihg', 'wyndham', 'choice',
-  'wholefoods', 'doordash', 'instacart',
+  'wholefoods', 'doordash', 'instacart', 'costcogas',
 ] as const;
 export type BrandId = (typeof BRAND_IDS)[number];
 

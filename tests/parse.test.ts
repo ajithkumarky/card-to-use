@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { brandOf, categorize, merchantKey } from '../src/core/categories';
-import { missingColumns, monthsCovered, parseAmount, parseDate, readTable } from '../src/core/parse';
+import { missingColumns, monthsCovered, parseAmount, parseDate, readTable, toTransactions } from '../src/core/parse';
 import { loadFixture } from './helpers';
 
 describe('bank exports', () => {
@@ -106,5 +106,35 @@ describe('brands', () => {
     expect(b('STARBUCKS')).toBeUndefined();
     expect(categorize('HAMPTON INN DENVER', '')).toBe('hotels');
     expect(categorize('SOUTHWEST GAS CORP', 'Utilities')).toBe('utilities');
+  });
+});
+
+describe('what counts as a purchase', () => {
+  const table = (rows: string[][]) => readTable([['Date', 'Description', 'Amount', 'Category', 'Card'], ...rows]);
+
+  it('drops transfers, pay, interest and card fees', () => {
+    const file = table([
+      ['2026-09-01', 'STARBUCKS', '6.50', 'Food & Drink', 'Amex Gold'],
+      ['2026-09-02', 'Online Transfer to Savings', '2000', '', 'Amex Gold'],
+      ['2026-09-03', 'ZELLE TO JOHN', '150', '', 'Amex Gold'],
+      ['2026-09-04', 'INTEREST CHARGE ON PURCHASES', '12', '', 'Amex Gold'],
+      ['2026-09-05', 'ANNUAL MEMBERSHIP FEE', '325', 'Fees & Adjustments', 'Amex Gold'],
+      ['2026-09-06', 'ACME CORP', '5000', 'Paycheck', 'Amex Gold'],
+      ['2026-09-07', 'TRANSFERWISE', '40', 'Shopping', 'Amex Gold'],
+    ]);
+    expect(toTransactions(file).map((t) => t.description)).toEqual(['STARBUCKS', 'TRANSFERWISE']);
+  });
+
+  it('reads each card’s sign convention in a combined file', () => {
+    const file = table([
+      ['2026-09-01', 'CHASE PURCHASE 1', '-10', '', 'Freedom'],
+      ['2026-09-02', 'CHASE PURCHASE 2', '-20', '', 'Freedom'],
+      ['2026-09-03', 'CHASE PURCHASE 3', '-30', '', 'Freedom'],
+      ['2026-09-04', 'CHASE PURCHASE 4', '-40', '', 'Freedom'],
+      ['2026-09-05', 'AMEX PURCHASE 1', '15', '', 'Gold'],
+      ['2026-09-06', 'AMEX PURCHASE 2', '25', '', 'Gold'],
+      ['2026-09-07', 'AMEX REFUND', '-5', '', 'Gold'],
+    ]);
+    expect(toTransactions(file).map((t) => t.amount)).toEqual([10, 20, 30, 40, 15, 25, -5]);
   });
 });

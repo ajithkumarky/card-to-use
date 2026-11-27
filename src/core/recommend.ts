@@ -59,6 +59,8 @@ export interface CardSummary {
 
 export interface Plan {
   categories: CategoryPlan[];
+  /** Yearly purchases (net of refunds) the plan covers. */
+  yearlySpend: number;
   total: number;
   baseline: number;
   baselineKind: 'actual' | 'single' | 'none';
@@ -210,6 +212,7 @@ export function buildPlan(input: PlanInput): Plan {
   const baseline = categories.reduce((a, c) => a + c.baseline, 0);
   return {
     categories,
+    yearlySpend: categories.reduce((a, c) => a + c.yearlySpend, 0),
     total,
     baseline,
     baselineKind: actualByCat ? 'actual' : singleBest ? 'single' : 'none',
