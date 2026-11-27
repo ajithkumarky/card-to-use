@@ -2,7 +2,7 @@
 
 Upload a credit card transaction export, tick the cards you hold, and see which card to use for each spending category, with estimated yearly rewards.
 
-**Nothing leaves the browser, and your purchases are never stored.** Files are read in the page, and there are no analytics and no cookies. The only server code is a small Worker that publishes this quarter's rotating 5% categories (see below); it never receives anything about you. Once you pick cards, the app remembers your cards, cards you added, rotating categories, merchant fixes and the point-value setting in this browser's `localStorage` (`src/ui/memory.ts`), so a return visit skips the how-it-works page. Transactions, file contents and card-number labels are never saved. **Forget me** under the file box clears everything. Fonts are self-hosted, and the Content-Security-Policy in `public/_headers` blocks requests to any other site.
+**Nothing leaves the browser, and your purchases are never stored.** Files are read in the page, and there are no cookies. The only server code is a small Worker that publishes this quarter's rotating 5% categories and counts which features get used (see **Usage stats** below); it never receives your transactions, merchants or cards. Once you pick cards, the app remembers your cards, cards you added, rotating categories, merchant fixes and the point-value setting in this browser's `localStorage` (`src/ui/memory.ts`), so a return visit skips the how-it-works page. Transactions, file contents and card-number labels are never saved. **Forget me** under the file box clears everything. Fonts are self-hosted, and the Content-Security-Policy in `public/_headers` blocks requests to any other site.
 
 > Not financial advice. Rates, caps, fees, APRs and point values are approximate and can change; check the issuer's terms.
 
@@ -48,6 +48,17 @@ No code changes are needed; Access puts a sign-in page in front of the app.
 4. Add a policy: Action **Allow**, Include **Emails** → list the people you want to invite (or **Emails ending in** for a whole domain).
 5. Login methods: **One-time PIN** works with any email address. Add **Google** under Settings → Authentication if you prefer.
 6. Turn off preview URLs for the Worker, or protect them with the same policy, so the app isn't reachable around Access.
+
+## Usage stats
+
+The owner can see who uses the app and which features, at **`/api/stats`** (`worker/usage.ts`, `src/ui/usage.ts`).
+
+- **Recorded:** the day and time, the email Cloudflare Access signed the person in with, and one event name from a fixed list: a page opened (which one), a spending-analysis tab viewed (which one), a file uploaded, sample data loaded, a "Which card here?" lookup run, cards saved, or Forget me used.
+- **Never recorded:** merchants, amounts, transactions, file names or contents, which cards anyone holds or picked, what was typed into a lookup, IP addresses or cookies. The Worker rejects any event or detail not on the list.
+- Browsers with Do Not Track or Global Privacy Control on send nothing. Rows are deleted after 180 days by the daily cron.
+- Events are stored in a D1 database (`USAGE`), created by the first deploy. The free plan allows 100,000 writes a day, and each person is capped at 500 events a day.
+
+**Setup (once):** `npx wrangler secret put STATS_OWNER` and enter your email (comma-separate several). Until it's set, `/api/stats` answers 404 for everyone, and it always does for anyone not on the list.
 
 ## Updating card data
 

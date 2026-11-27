@@ -1,7 +1,9 @@
 /**
- * The app's only server code. It does two things and never sees anything about the people using the app:
+ * The app's only server code. It never sees anyone's transactions, merchants or cards:
  *  - GET /api/rotating returns this quarter's rotating 5% categories from KV (or the bundled copy).
- *  - A daily cron reads the issuers' public pages, checks the result, and updates KV when it changed.
+ *  - POST /api/event records a feature-usage event (a name from a fixed list) for the owner's stats page.
+ *  - GET /api/stats shows the owner, and only the owner, who used the app and which features (worker/usage.ts).
+ *  - A daily cron reads the issuers' public pages, updates KV when they changed, and prunes old usage rows.
  * Every other request is a static file served straight from ./dist without running this script.
  */
 import bundled from '../src/data/rotating.json';
@@ -21,6 +23,7 @@ import {
   type SourceId,
   type SourceStatus,
 } from '../src/core/rotating';
+import { pruneEvents, recordEvent, statsPage, type D1 } from './usage';
 
 interface KV {
   get(key: string): Promise<string | null>;
@@ -28,6 +31,9 @@ interface KV {
 }
 interface Env {
   ROTATING: KV;
+  USAGE?: D1;
+  /** Comma-separated emails allowed to open /api/stats. Set with `npx wrangler secret put STATS_OWNER`. */
+  STATS_OWNER?: string;
   ASSETS: { fetch(request: Request): Promise<Response> };
 }
 interface Ctx {
@@ -114,10 +120,13 @@ export default {
         headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, max-age=3600' },
       });
     }
+    if (url.pathname === '/api/event' && request.method === 'POST') return recordEvent(request, env.USAGE);
+    if (url.pathname === '/api/stats' && request.method === 'GET') return statsPage(request, env.USAGE, env.STATS_OWNER);
     return env.ASSETS.fetch(request);
   },
 
   async scheduled(_controller: unknown, env: Env, ctx: Ctx): Promise<void> {
     ctx.waitUntil(crawl(env));
+    ctx.waitUntil(pruneEvents(env.USAGE).catch((e) => console.log(JSON.stringify({ usage: 'prune failed', error: String(e) }))));
   },
 };
