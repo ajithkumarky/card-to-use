@@ -164,3 +164,16 @@ details.issuer summary small{font-weight:400;color:var(--mut)}
 .topnav .navtabs a:hover{opacity:1}
 .topnav .navtabs a[aria-current=page]{opacity:1}
 @media (max-width:520px){.navtabs{width:100%;justify-content:space-between;gap:12px}.topnav .navtabs a{font-size:14px}}
+.matched{border:2px solid var(--ink);border-radius:12px;padding:10px 14px;margin:10px 0 14px;background:var(--bg)}
+.matched-main{display:flex;align-items:center;gap:12px}
+.matched-main>div:nth-child(2){flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.matched-main b{font-size:18px}
+.matched-cat{color:var(--mut);font-size:15px}
+.matched-tick{flex:none;width:26px;height:26px;border-radius:50%;background:var(--gain);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:700}
+.matched-actions{display:flex;gap:14px;flex:none}
+.matched-actions .linkish{min-height:40px;font-size:15px}
+.matched-note{margin:6px 0 0 38px;font-size:14px;color:var(--mut)}
+.matched .chips{margin-top:10px}
+.quick .answer{border-top:0;padding-top:0}
+@media (max-width:520px){.answer-card{grid-template-columns:96px 1fr;gap:12px;align-items:start}.answer-card .cc{max-width:96px}.answer-card h2{font-size:22px}}
+@media (max-width:520px){.matched-main{flex-wrap:wrap;gap:4px 12px}.matched-actions{width:100%;padding-left:38px}.matched-actions .linkish{min-height:36px}}
