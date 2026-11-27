@@ -47,6 +47,7 @@ interface QuickProps {
 export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps) {
   const [merchant, setMerchant] = useState('');
   const [chosen, setChosen] = useState<CategoryId | null>(null);
+  const [changing, setChanging] = useState(false);
   const typed = merchant.trim();
   const guessed = typed ? categorize(typed, '', overrides) : null;
   const cat = chosen ?? guessed;
@@ -78,6 +79,7 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
           onChange={(e) => {
             setMerchant(e.target.value);
             setChosen(null);
+            setChanging(false);
           }}
         />
       </label>
@@ -85,19 +87,35 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
         {SUGGESTIONS.map((s) => <option key={s} value={s} />)}
       </datalist>
 
-      <p className="note">
-        {unsure
-          ? 'Not sure what kind of place that is. Pick one below.'
-          : cat
-            ? known && !chosen
-              ? `${known.name} counts as ${where(cat, brand)}.`
-              : `Treating this as ${where(cat, brand)}.`
-            : 'Type a store, or pick what you’re buying:'}
-      </p>
-      {known && !chosen && known.note && <p className="note merchant-note">ⓘ {known.note}</p>}
       {cat && !unsure ? (
-        <details className="change">
-          <summary>Wrong kind of purchase? Change it</summary>
+        <div className="matched" role="status">
+          <div className="matched-main">
+            <span className="matched-tick" aria-hidden="true">✓</span>
+            <div>
+              <b>{known && !chosen ? known.name : typed || CATEGORY_LABELS[cat]}</b>
+              <span className="matched-cat">{known && !chosen ? 'counts as ' : chosen && typed ? 'treated as ' : ''}{where(cat, brand)}</span>
+            </div>
+            <div className="matched-actions">
+              <button className="linkish" aria-expanded={changing} onClick={() => setChanging((v) => !v)}>Change category</button>
+              {(typed || chosen) && (
+                <button className="linkish" onClick={() => { setMerchant(''); setChosen(null); setChanging(false); }}>Clear</button>
+              )}
+            </div>
+          </div>
+          {known && !chosen && known.note && <p className="matched-note">{known.note}</p>}
+          {changing && (
+            <div className="chips" role="group" aria-label="Kind of purchase">
+              {CATEGORY_IDS.map((k) => (
+                <button key={k} className="pill" aria-pressed={cat === k} onClick={() => { setChosen(k); setChanging(false); }}>
+                  {CATEGORY_LABELS[k]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <p className="note">{unsure ? `Not sure what kind of place “${typed}” is. Pick one:` : 'Type a store, or pick what you’re buying:'}</p>
           <div className="chips" role="group" aria-label="Kind of purchase">
             {CATEGORY_IDS.map((k) => (
               <button key={k} className="pill" aria-pressed={cat === k} onClick={() => setChosen(k)}>
@@ -105,15 +123,7 @@ export function QuickPick({ held, mode, onMode, overrides, picker }: QuickProps)
               </button>
             ))}
           </div>
-        </details>
-      ) : (
-        <div className="chips" role="group" aria-label="Kind of purchase">
-          {CATEGORY_IDS.map((k) => (
-            <button key={k} className="pill" aria-pressed={cat === k} onClick={() => setChosen(k)}>
-              {CATEGORY_LABELS[k]}
-            </button>
-          ))}
-        </div>
+        </>
       )}
       {best && held.filter((c) => c.rotating?.stale).map((c) => <StaleNotice key={c.id} card={c} />)}
       {best && (
